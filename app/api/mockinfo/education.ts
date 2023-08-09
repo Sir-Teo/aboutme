@@ -7,7 +7,7 @@ export default {
             college: 'Graduate School of Arts and Science ',
             logo: './school/nyu.png',
             startDate: '2023-09',
-            graduationDate: '2025-05',
+            graduationDate: undefined,
             degree: 'Master of Science',
             major: 'Data Science',
         },

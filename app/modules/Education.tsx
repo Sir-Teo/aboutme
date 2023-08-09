@@ -53,21 +53,26 @@ const Education = () => {
                                                 ? 'px-2 bg-violet-100 dark:bg-violet-900 rounded-md'
                                                 : 'pl-2 rounded-sm'
                                         }  flex-col justify-center items-center flex`}
-                                    >
+                                    > 
                                         <div
-                                            className={`text-center ${
-                                                isPresent
-                                                    ? 'text-violet-500 rounded-3xl dark:text-violet-100 '
-                                                    : 'text-slate-500 dark:text-stone-400'
-                                            } text-xs font-normal leading-3 tracking-tight`}
-                                        >
-                                            {isPresent
-                                                ? graduationDateFormatted
-                                                : `${startDateFormatted} - ${graduationDateFormatted}`}
-                                        </div>
+                                        className={`text-center ${
+                                            isPresent
+                                                ? 'text-violet-500 rounded-3xl dark:text-violet-100 '
+                                                : 'text-slate-500 dark:text-stone-400'
+                                        } text-xs font-normal leading-3 tracking-tight`}
+                                    >
+                                        {isPresent
+                                            ? 'Attending'
+                                            : `${startDateFormatted} - ${graduationDateFormatted}`}
+                                        {isPresent && (
+                                            <div className="text-xs text-slate-500 dark:text-stone-400">
+                                                (Started on {startDateFormatted})
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="justify-center items-center gap-1 inline-flex">
-                                        <div className="justify-center items-center gap-0.5 flex">
+                                    </div>
+                                    <div className="justify-end items-end gap-1 inline-flex">
+                                        <div className="justify-end items-end gap-0.5 flex text-right">
                                             <div
                                                 className={`text-slate-500 text-sm font-bold tracking-tight mt-0.5 ${
                                                     isPresent ? 'dark:text-gray-300' : 'dark:text-zinc-300 '
