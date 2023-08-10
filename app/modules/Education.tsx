@@ -66,7 +66,7 @@ const Education = () => {
                                             : `${startDateFormatted} - ${graduationDateFormatted}`}
                                         {isPresent && (
                                             <div className="text-xs text-slate-500 dark:text-stone-400">
-                                                (Started on {startDateFormatted})
+                                                Started on {startDateFormatted}
                                             </div>
                                         )}
                                     </div>

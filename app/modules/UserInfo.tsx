@@ -91,7 +91,7 @@ const BasicInfoBlock = ({ basicInfo }: { basicInfo: typeof userInfo.data.basicIn
 const ContactInfoBlock = ({ contactInfo }: { contactInfo: typeof userInfo.data.contactInfo }) => {
     const { countryCode } = contactInfo || {}
     let contactList: { type: string; title: string; value: string }[] = []
-    const displayTypes: (keyof typeof contactInfo)[] = ['email', 'website', 'phone', 'city']
+    const displayTypes: (keyof typeof contactInfo)[] = ['email', 'website','website2', 'phone', 'city']
     _map(displayTypes, type => {
         let value = contactInfo[type]
         if (type == 'phone' && countryCode) {

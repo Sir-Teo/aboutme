@@ -5,11 +5,12 @@ export default {
             career: 'Data Scientist',
             avatar: './user/avatar.jpg',
             snapshot: './user/snapshot.png',
-            bio: '',
+            bio: 'The more you know, the more you know!',
         },
         contactInfo: {
             email: 'zengwc.teo2016@outlook.com',
             website: 'https://teozeng.dev',
+            website2: 'https://sir-teo.github.io',
             phone: '8058002486',
             countryCode: '1',
             city: 'New York',

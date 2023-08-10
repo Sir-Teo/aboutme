@@ -23,6 +23,14 @@ export default {
             major2: 'Statistics and Data Science',
             major3: 'Psychological and Brain Science',
         },
+        {
+            school: 'hfi',
+            college: 'International Department',
+            schoolFull: 'Affiliated High School of South China Normal University',
+            logo: './school/hfi.png',
+            startDate: '2016-09',
+            graduationDate: '2019-06',
+        },
     ],
     status: 0,
 }
