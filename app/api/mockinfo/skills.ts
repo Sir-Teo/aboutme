@@ -1,23 +1,23 @@
 export default {
-    title: 'SKills',
+    title: 'Skills',
     data: [
         {
             category: 'Expert', // 专家
             logo: './misc/expert.svg',
             style: 'emerald',
-            list: ['python','tensorflow','pytorch','java','c++','html','latex'],
+            list: ['Python','TensorFlow','Pytorch','MATLAB','Java','C++','HTML','LATEX'],
         },
         {
             category: 'Proficient', // 精通
             logo: './misc/proficient.svg',
             style: 'violet',
-            list: ['javascript'],
+            list: ['Javascript'],
         },
         {
             category: 'Skilled', // 熟练
             logo: './misc/skilled.svg',
             style: 'orange',
-            list: ['photoshop'],
+            list: ['Photoshop'],
         },
         {
             category: 'Familiar', // 了解

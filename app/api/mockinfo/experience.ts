@@ -1,41 +1,16 @@
 export default {
-    title: 'Experience',
+    title: 'Work Experience',
     data: [
         // Apple
         {
             logo: './commonicons/apple.svg', // company logo
-            hireDate: '2021-01', // Date of hire
-            lastDay: '2023-12', // Last day of work
-            companyFullname: 'Apple', // Full name of the company
-            companyAbb: 'Apple', // Abbreviation of the company name
-            jobTitle: 'Frontend Developer',
-            city: 'Shanghai', // City of employment
-            Responsibilities:
-                'design and develop user interfaces using programming languages and frameworks such as HTML, CSS, and React. I collaborate with back-end developers to integrate the UI with application logic and ensure optimal performance.', // Job description/Responsibilities
-        },
-        
-        {
-            logo: './commonicons/trip.svg', // company logo
-            hireDate: '2005-3', // Date of hire
-            lastDay: '2018-12', // Last day of work
-            companyFullname: 'Trip', // Full name of the company
-            companyAbb: 'Trip', // Abbreviation of the company name
-
-            jobTitle: 'UI/UX Designer',
-            city: 'Shanghai', // City of employment
-            Responsibilities:
-                'create user interfaces and experiences for digital products, working closely with stakeholders to gather requirements and design wireframes, prototypes, and visual designs. I use design tools such as Sketch and Figma and conduct user testing to ensure usability and accessibility.', // Job description/Responsibilities
-        },
-        {
-            logo: './commonicons/microsoft.svg', // company logo
-            hireDate: '2019-1', // Date of hire
-            lastDay: '2022-12', // Last day of work
-            companyFullname: 'Microsoft', // Full name of the company
-            companyAbb: 'Microsoft', // Abbreviation of the company name
-            jobTitle: 'Product Manager',
-            city: 'Shanghai', // City of employment
-            Responsibilities:
-                'define product strategy and requirements, prioritize features based on user needs and business goals, and work with cross-functional teams to ensure successful product delivery. I use project management tools such as Jira to track progress and make data-driven decisions to improve the product.', // Job description/Responsibilities
+            hireDate: '2021-07', // Date of hire
+            lastDay: '2021-9', // Last day of work
+            companyFullname: 'Cheese Fund', // Full name of the company
+            companyAbb: 'Cheese Fund', // Abbreviation of the company name
+            jobTitle: 'Market Analyst',
+            city: 'Guanghzou', // City of employment
+            Responsibilities: 'Over the course of my tenure, I spearheaded comprehensive research initiatives across diverse sectors in China, including leisure food, web video, and pharmaceuticals. These efforts often culminated in weekly analytical presentations to the core investment team. A notable achievement was my exhaustive ground research in Guangzhou, where I assessed over 30 pharmacies. Through direct engagement with managerial personnel, I extracted invaluable insights that were synthesized into structured investment reports. Additionally, I conducted in-person interviews with 10 pharmaceutical representatives, delving into critical metrics such as pricing strategies, traffic data, and customer feedback. This rigorous approach facilitated a precise evaluation of investment opportunities.', // Job description/Responsibilities
         },
     ],
     status: 0,

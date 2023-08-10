@@ -5,6 +5,7 @@ import Experience from '@/app/modules/Experience'
 import Education from '@/app/modules/Education'
 import Skills from '@/app/modules/Skills'
 import UserInfo from '@/app/modules/UserInfo'
+import ResearchExperience from '@/app/modules/researchExperience'
 import Projects from '@/app/modules/Projects'
 import Works from '@/app/modules/Works'
 import Tools from '@/app/modules/Tools'
@@ -21,7 +22,7 @@ const En: NextPage<{ serverSideData: any }, any> = ({ serverSideData }: { server
             <div className="right-pannel w-3/4 min-w-[39rem] h-full py-6 bg-white px-2 dark:bg-slate-800">
                 <Education />
                 <Experience />
-                <Works />
+                <ResearchExperience />
                 <Projects />
                 <Skills />
                 <Tools />

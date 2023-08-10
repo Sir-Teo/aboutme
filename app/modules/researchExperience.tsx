@@ -1,9 +1,9 @@
-import research from '../api/mockinfo/projects'
+import research from '../api/mockinfo/researchExperience'
 import { map as _map, isEmpty as _isEmpty } from 'lodash'
 import { Fragment } from 'react'
 import AlphabetSvg, { UPPERLOWER } from '../components/AlphabetSvg'
 
-const Projects = () => {
+const ResearchExperience = () => {
     const { data, title } = research || {}
     return (
         <div className="research-module">
@@ -75,7 +75,7 @@ const Projects = () => {
     )
 }
 
-export default Projects
+export default ResearchExperience
 
 // ********** helper **********
 
