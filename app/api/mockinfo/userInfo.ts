@@ -23,28 +23,18 @@ export default {
             },
             {
                 social: 'wechat',
-                account: '@yourwechat',
+                account: '@Teo',
                 qrcode: './user/wechat_qrcode.jpg',
             },
             {
                 social: 'bilibili',
-                account: '@yourbilibili',
-                link: 'https://bilibili.com/youraccount',
-            },
-            {
-                social: 'linkedin',
-                account: '@yourlinkedin',
-                link: 'https://linkedin.com/youraccount',
-            },
-            {
-                social: 'xiaohongshu',
-                account: '@yourxiaohongshu',
-                link: 'https://xiaohongshu.com/youraccount',
+                account: '@master_teo',
+                link: 'https://space.bilibili.com/299736746',
             },
             {
                 social: 'instagram',
-                account: '@yourinstagram',
-                link: 'https://instagram.com/youraccount',
+                account: '@sir_teo',
+                link: 'https://www.instagram.com/sir_teo',
             },
             {
                 social: 'online-go',

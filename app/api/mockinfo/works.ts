@@ -9,6 +9,7 @@ export default {
             Our website includes introductions to various AI APIs, including speech recognition, image recognition, natural language processing, and more. Our introductions not only tell you how to use these APIs, but also explain the concepts of various parameters so that you can better understand how the APIs work.\n\
             To help you better grasp these concepts and technologies, we also provide some practical examples. These examples can help you better understand how to use these APIs and gain more inspiration and ideas from them.\n\
             We are committed to making AI technology more popular and easy to use, and hope that our website can provide you with valuable help. If you have any questions or suggestions, please feel free to contact us.',
+            link: 'https://aiweb.viku.org/',
         },
     ],
     status: 0,
