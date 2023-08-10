@@ -27,11 +27,6 @@ export default {
                 qrcode: './user/wechat_qrcode.jpg',
             },
             {
-                social: 'weibo',
-                account: '@yourweibo',
-                link: 'https://weibo.com/youraccount',
-            },
-            {
                 social: 'bilibili',
                 account: '@yourbilibili',
                 link: 'https://bilibili.com/youraccount',
@@ -52,10 +47,11 @@ export default {
                 link: 'https://instagram.com/youraccount',
             },
             {
-                social: 'twitter',
-                account: '@yourtwitter',
-                link: 'https://twitter.com/youraccount',
+                social: 'online-go',
+                account: '@Master Teo',
+                link: 'https://online-go.com/user/view/622443',
             },
+
         ],
         languages: [
             { language: 'Chinese', level: 'native' },
@@ -63,14 +59,15 @@ export default {
             { language: 'Cantonese', level: 'native' },
         ],
         hobbies: [
-            { hobby: 'Gaming', type: 'game' },
             { hobby: 'Travelling', type: 'travel' },
+            { hobby: 'Basketball', type: 'basketball' },
+            { hobby: 'Scuba', type: 'scuba' },
             { hobby: 'Photography', type: 'photography' },
-            { hobby: 'Badminton', type: 'badminton' },
             { hobby: 'Coding', type: 'coding' },
             { hobby: 'Design', type: 'design' },
             { hobby: 'Music', type: 'music' },
-            { hobby: 'Basketball', type: 'basketball' },
+            { hobby: 'Golf', type: 'golf' },
+            { hobby: 'Skiing', type: 'skiing' },
         ],
     },
     status: 0,

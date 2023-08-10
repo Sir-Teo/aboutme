@@ -13,6 +13,7 @@ export default {
             Responsibilities:
                 'design and develop user interfaces using programming languages and frameworks such as HTML, CSS, and React. I collaborate with back-end developers to integrate the UI with application logic and ensure optimal performance.', // Job description/Responsibilities
         },
+        
         {
             logo: './commonicons/trip.svg', // company logo
             hireDate: '2005-3', // Date of hire

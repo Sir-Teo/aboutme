@@ -19,11 +19,11 @@ const En: NextPage<{ serverSideData: any }, any> = ({ serverSideData }: { server
                 <UserInfo />
             </div>
             <div className="right-pannel w-3/4 min-w-[39rem] h-full py-6 bg-white px-2 dark:bg-slate-800">
-                <Works />
-                <Experience />
                 <Education />
-                <Skills />
+                <Experience />
+                <Works />
                 <Projects />
+                <Skills />
                 <Tools />
             </div>
         </div>
