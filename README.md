@@ -1,21 +1,9 @@
 # Professional Personal Website
 
+code for [teozeng.dev](https://teozeng.dev/)
+
 This project is a pure front-end website based on the Next.js framework, designed to showcase and introduce personal information.
 
-<br />
-The website already includes icons for some social media and office tools, and you do not need to manually specify them as the project will automatically search for the corresponding icon based on its name.
-<br />
-<br />
-<img src="./public/preview/page-snapshot03.png" width="800px"/>
-<br />
-Now there is a feature <b>dark mode</b>, with a one-click toggle in the top right corner.
-<br />
-<img src="./public/preview/page-snapshot02.png" width="800px"/>
-<br />
-display a popvover of QR code on mouse hover.
-<br/>
-<img src="./public/preview/page-snapshot-qrcode.png" width="300px"/>
-<br />
 
 ## Getting Started
 Run the development server:
