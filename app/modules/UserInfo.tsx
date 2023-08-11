@@ -2,6 +2,7 @@ import userInfo from '../api/mockinfo/userInfo'
 import { map as _map, isEmpty as _isEmpty } from 'lodash'
 import FallbackImage from '../components/FallbackImage'
 import SocialInteractText from '../components/SocialInteractText'
+import HobbyInteractText from '../components/HobbyInteractText'
 import SVGbyTheme from '../components/SVGbyTheme'
 
 const UserInfo = () => {
@@ -225,7 +226,7 @@ const HobbiesInterestsBlock = ({ hobbies }: { hobbies: typeof userInfo.data.hobb
                     Hobbies & Interests
                 </div>
                 {_map(hobbies, (hItem, hIndex) => {
-                    const { hobby, type } = hItem || {}
+                    const { hobby, type, furtherText } = hItem || {}
                     return (
                         <div
                             key={`userinfo_languages_${hIndex}`}
@@ -238,7 +239,11 @@ const HobbiesInterestsBlock = ({ hobbies }: { hobbies: typeof userInfo.data.hobb
                             </div>
                             <div className="ml-[0.2rem] grow shrink basis-0 flex-col justify-start items-start">
                                 <div className="self-stretch text-slate-600 text-xs font-medium leading-3 relative top-[1px] dark:text-gray-300">
-                                    {upperFirstLetter(hobby)}
+                                    {furtherText ? (
+                                        <HobbyInteractText text={hobby} hobbyItem = {hItem}  />
+                                    ) : (
+                                        <>{upperFirstLetter(hobby)}</>
+                                    )}
                                 </div>
                             </div>
                         </div>

@@ -12,16 +12,6 @@ export default {
             desc: 'iOS development',
         },
         {
-            title: 'Figma',
-            name: 'figma',
-            desc: 'UI Design, Prototyping',
-        },
-        {
-            title: 'Sketch',
-            name: 'sketch',
-            desc: 'UI Design, Prototyping',
-        },
-        {
             title: 'Adobe Photoshop',
             name: 'photoshop',
             desc: 'UI Design, Creativation',

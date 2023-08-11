@@ -1,4 +1,4 @@
-import research from '../api/mockinfo/researchExperience'
+import research from '../api/mockinfo/ResearchExperience'
 import { map as _map, isEmpty as _isEmpty } from 'lodash'
 import { Fragment } from 'react'
 import AlphabetSvg, { UPPERLOWER } from '../components/AlphabetSvg'
