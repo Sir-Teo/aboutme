@@ -10,9 +10,17 @@ export default {
             ],
         },
         {
+            url: 'https://sir-teo.github.io/visualizing-grades/',
+            name: 'Visualizing Grades Distribution in UCSB',
+            tags: ['Data Science','2023'],
+            descriptions: [
+                'A website that help visualize the grading distribution of some courses at UCSB. ',
+            ],
+        },
+        {
             url: 'https://github.com/Sir-Teo/project',
             name: 'Circuit Drawing Domain Specific Language',
-            tags: ['Parsing','2023'],
+            tags: ['Parsing','2018'],
             descriptions: [
                 ' A domain-specific language (DSL) designed to allow users to draw electrical circuits using textual input. This project facilitates the creation and visualization of circuit designs, which can be viewed through a graphical user interface or generated as an image file.',
             ],
