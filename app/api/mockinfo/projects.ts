@@ -2,7 +2,7 @@ export default {
     title: 'Projects',
     data: [
         {
-            url: 'https://github.com/Sir-Teo/MusRec',
+            url: 'https://github.com/Sir-Teo/MusRec-Web',
             name: 'Music Recommendation Application',
             tags: ['Front-end','Machine Learning','Spotify API','2023'],
             descriptions: [

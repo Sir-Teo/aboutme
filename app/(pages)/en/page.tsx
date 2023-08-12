@@ -24,6 +24,7 @@ const En: NextPage<{ serverSideData: any }, any> = ({ serverSideData }: { server
                 <Experience />
                 <ResearchExperience />
                 <Projects />
+                <Works />
                 <Skills />
                 <Tools />
             </div>

@@ -47,7 +47,7 @@ const Works = () => {
                                                     <div className="grow shrink h-full basis-0 flex-col justify-center items-start inline-flex relative top-[1px]">
                                                         <div className="text-indigo-500  text-xs font-bold leading-4 cursor-pointer dark:text-indigo-300">
                                                             <a href={link} target="_blank" className="inline">
-                                                                {link}
+                                                                Link
                                                             </a>
                                                         </div>
                                                     </div>
@@ -98,7 +98,7 @@ const Works = () => {
                                                         <div className="grow shrink h-full basis-0 flex-col justify-center items-start inline-flex relative top-[1px]">
                                                             <div className="text-indigo-500  text-xs font-bold leading-4 cursor-pointer dark:text-indigo-300">
                                                                 <a href={link} target="_blank" className="inline">
-                                                                    {link}
+                                                                    Link
                                                                 </a>
                                                             </div>
                                                         </div>
