@@ -13,8 +13,7 @@ const ResearchExperience = () => {
                 </div>
                 <div className="self-stretch flex-col justify-start items-start pt-2 flex pb-2 relative">
                     {_map(data, (project, pIndex) => {
-                        const { name, tags, descriptions, url,} = project || {}
-                        const firstChar = getFirstCharEnglish(name, 'x')
+                        const { name, tags, descriptions, url, poster} = project || {}
                         const tagsText = _isEmpty(tags) ? undefined : tags.join(` · `)
                         return (
                             <div
@@ -35,6 +34,16 @@ const ResearchExperience = () => {
                                             {name || ''}
                                         </div>
                                     </div>
+                                    {poster ? (
+                                    <a href = {poster} className="pl-4 grow shrink basis-0 ">
+                                        <div className="float-right text-sm">
+                                            <div className="text-green-500 text-xs font-medium leading-3 cursor-pointer w-20 text-right">
+                                                Poster
+                                                <img src="./misc/poster.svg" className="w-3 h-3 inline" />
+                                            </div>
+                                        </div>
+                                    </a>) : null
+                                    }
                                     {url ? (
                                     <a href = {url} className="pl-4 grow shrink basis-0 tracking-tight">
                                         <div className="float-right text-sm">
@@ -45,6 +54,7 @@ const ResearchExperience = () => {
                                         </div>
                                     </a>) : null
                                     }
+                
                                 </div>
                                 <div className="flex-col h-[2px] bg-slate-300 w-full mt-1 mb-2" />
                                 <div className="flex-col text-xs">

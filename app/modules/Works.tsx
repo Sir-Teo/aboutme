@@ -14,7 +14,7 @@ const Works = () => {
                 <div className="self-stretch flex-col justify-start items-start pt-2 flex pb-2 relative gap-[1rem]">
                     {_map(displayList, (displayRow, rowIndex) => {
                         if (displayRow.length == 1) {
-                            const { title, banner, descriptions, link } = displayRow[0] || {}
+                            const { title, banner, descriptions, link, poster } = displayRow[0] || {}
                             return (
                                 <div
                                     key={`works_rows_${rowIndex}`}
@@ -53,6 +53,23 @@ const Works = () => {
                                                     </div>
                                                 </div>
                                             ) : null}
+                                            {poster ? (
+                                                <div className="self-stretch justify-center items-center gap-1.5 inline-flex align-text-bottom">
+                                                    <div className="w-5 h-5 relative rounded-full  bg-indigo-100 dark:bg-indigo-900">
+                                                        <div className="w-4 h-4 left-[2px] top-[2px] absolute">
+                                                            {/* <img src="./misc/link.svg" /> */}
+                                                            <SVGbyTheme svg="./misc/poster.svg" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="grow shrink h-full basis-0 flex-col justify-center items-start inline-flex relative top-[1px]">
+                                                        <div className="text-indigo-500  text-xs font-bold leading-4 cursor-pointer dark:text-indigo-300">
+                                                            <a href={poster} target="_blank" className="inline">
+                                                                Poster
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : null}
                                         </div>
                                     </div>
                                 </div>
@@ -65,7 +82,7 @@ const Works = () => {
                                 className="self-stretch justify-start items-start gap-[1rem] inline-flex"
                             >
                                 {_map(displayRow, (displayItem, itemIndex) => {
-                                    const { title, banner, descriptions, link } = displayItem || {}
+                                    const { title, banner, descriptions, link, poster } = displayItem || {}
                                     return (
                                         <div
                                             key={`works_rows_${rowIndex}_${itemIndex}`}
@@ -99,6 +116,23 @@ const Works = () => {
                                                             <div className="text-indigo-500  text-xs font-bold leading-4 cursor-pointer dark:text-indigo-300">
                                                                 <a href={link} target="_blank" className="inline">
                                                                     Link
+                                                                </a>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : null}
+                                                {poster ? (
+                                                    <div className="self-stretch justify-center items-center gap-1.5 inline-flex align-text-bottom">
+                                                        <div className="w-5 h-5 relative rounded-full  bg-indigo-100 dark:bg-indigo-900">
+                                                            <div className="w-4 h-4 left-[2px] top-[2px] absolute">
+                                                                {/* <img src="./misc/link.svg" /> */}
+                                                                <SVGbyTheme svg="./misc/poster.svg" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="grow shrink h-full basis-0 flex-col justify-center items-start inline-flex relative top-[1px]">
+                                                            <div className="text-indigo-500  text-xs font-bold leading-4 cursor-pointer dark:text-indigo-300">
+                                                                <a href={poster} target="_blank" className="inline">
+                                                                    Poster
                                                                 </a>
                                                             </div>
                                                         </div>

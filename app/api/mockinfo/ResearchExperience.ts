@@ -11,7 +11,7 @@ export default {
                 '• Developed a predictive model with high accuracy in identifying inherent properties of crystallographic data derived from raw x-ray diffraction images, thereby promising to expedite materials research.',
                 '• Authored a comprehensive report documenting the project journey, challenges, solutions, and results. This detailed analysis helped bridge the gap between complex technical processes and the broader audience’s understanding, enhancing the potential for its application in future research.',
             ],
-            poster: '',
+            poster: '../pdf/SLAC Poster.pdf',
         },
         {
             url: 'https://github.com/Sir-Teo/resonet',

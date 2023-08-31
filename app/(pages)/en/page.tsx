@@ -9,6 +9,7 @@ import ResearchExperience from '@/app/modules/researchExperience'
 import Projects from '@/app/modules/Projects'
 import Works from '@/app/modules/Works'
 import Tools from '@/app/modules/Tools'
+import Publication from '@/app/modules/Publication'
 import { metadata as rootMetadata } from '@/app/layout'
 
 export const metadata = rootMetadata
@@ -22,6 +23,7 @@ const En: NextPage<{ serverSideData: any }, any> = ({ serverSideData }: { server
             <div className="right-pannel w-3/4 min-w-[39rem] h-full py-6 bg-white px-2 dark:bg-slate-800">
                 <Education />
                 <Experience />
+                <Publication/>
                 <ResearchExperience />
                 <Projects />
                 <Works />
