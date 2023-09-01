@@ -2,7 +2,7 @@ export default {
     title: 'Publication',
     data: [
         {
-            tags: ['Submitted', '2023'],
+            tags: ['UCSB', '2023','IUCr Journals'],
             url: 'https://github.com/dermen/resonet/tree/master',
         },
 

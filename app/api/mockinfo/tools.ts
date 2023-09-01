@@ -7,30 +7,59 @@ export default {
             desc: 'Code editor',
         },
         {
-            title: 'Xcode',
-            name: 'xcode',
-            desc: 'iOS development',
-        },
-        {
             title: 'Adobe Photoshop',
             name: 'photoshop',
             desc: 'UI Design, Creativation',
         },
         {
-            title: 'Adobe Illustrator',
-            name: 'illustrator',
-            desc: 'Creative Designing',
-        },
-        {
             title: 'MS Excel',
             name: 'excel',
-            desc: 'Office Work',
+            desc: 'Optimizatio, Data Analysis',
         },
         {
-            title: 'Blender',
-            name: 'blender',
-            desc: 'blender',
+            title: 'Final Cut Pro',
+            name: 'fcp',
+            desc: 'Video Editing',
         },
+        {
+            title: 'Unity',
+            name: 'unity',
+            desc: 'Game Development',
+        },
+        {
+            title: 'IntelliJ IDEA',
+            name: 'idea',
+            desc: 'IDE',
+        },
+        {
+            title: 'Xcode',
+            name: 'xcode',
+            desc: 'iOS development',
+        },
+        {
+            title: 'Rstudio',
+            name: 'rstudio',
+            desc: 'IDE',
+        },
+        {
+            title: 'Mathematica',
+            name: 'mathematica',
+            desc: 'Mathematical Computation',
+        },
+        {
+            title: 'Matlab',
+            name: 'matlab',
+            desc: 'Mathematical Computation',
+        },
+        {
+            title: 'Logic Pro X',
+            name: 'logicprox',
+            desc: 'Music Production',
+        },
+
+
+
+
     ],
     status: 0,
 }

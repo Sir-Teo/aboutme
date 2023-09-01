@@ -2,28 +2,28 @@ export default {
     title: 'Skills',
     data: [
         {
-            category: 'Expert', // 专家
+            category: 'Expert', 
             logo: './misc/expert.svg',
             style: 'emerald',
-            list: ['Python','TensorFlow','Pytorch','MATLAB','Java','C++','HTML','LATEX'],
+            list: ['Python','TensorFlow','Pytorch','Git','Matplotlib','Pandas','R','SQL','MATLAB','Java','C++','LATEX'],
         },
         {
-            category: 'Proficient', // 精通
+            category: 'Proficient',
             logo: './misc/proficient.svg',
             style: 'violet',
-            list: ['Javascript'],
+            list: ['Javascript','CSS','HTML','Swift'],
         },
         {
-            category: 'Skilled', // 熟练
+            category: 'Skilled',
             logo: './misc/skilled.svg',
             style: 'orange',
             list: ['Photoshop'],
         },
         {
-            category: 'Familiar', // 了解
+            category: 'Familiar', 
             logo: './misc/familiar.svg',
             style: 'gray',
-            list: ['php','electron'],
+            list: ['php','electron','Vue.js',],
         },
     ],
     status: 0,
