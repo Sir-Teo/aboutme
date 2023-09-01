@@ -16,6 +16,7 @@ export default {
             descriptions: [
                 'A website that help visualize the grading distribution of some courses at UCSB. ',
             ],
+            demo: 'https://sir-teo.github.io/visualizing-grades/',
         },
         {
             url: 'https://github.com/Sir-Teo/project',

@@ -7,7 +7,7 @@ import SVGbyTheme from '../components/SVGbyTheme'
 
 const UserInfo = () => {
     const { data } = userInfo || {}
-    const { basicInfo, contactInfo, socials, languages, hobbies } = data || {}
+    const { basicInfo, contactInfo, socials, languages, hobbies, coolLinks } = data || {}
     return (
         <div className="relative userinfo-module pt-6">
             <div className="min-w-[11rem] w-full h-96 p-6 left-0 top-0 absolute flex-col justify-start items-start gap-4 inline-flex">
@@ -38,6 +38,14 @@ const UserInfo = () => {
                             <div className="h-px w-full left-0 top-0 absolute bg-slate-200" />
                         </div>
                         <HobbiesInterestsBlock hobbies={hobbies} />
+                    </>
+                )}
+                {_isEmpty(coolLinks) ? null : (
+                    <>
+                        <div className="w-full h-px relative">
+                            <div className="h-px w-full left-0 top-0 absolute bg-slate-200" />
+                        </div>
+                        <CoolLinksBlock coolLinks={coolLinks} />
                     </>
                 )}
             </div>
@@ -243,6 +251,45 @@ const HobbiesInterestsBlock = ({ hobbies }: { hobbies: typeof userInfo.data.hobb
                                         <HobbyInteractText text={hobby} hobbyItem = {hItem}  />
                                     ) : (
                                         <>{upperFirstLetter(hobby)}</>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                })}
+            </div>
+        </div>
+    )
+
+}
+
+
+const CoolLinksBlock = ({ coolLinks }: { coolLinks: typeof userInfo.data.coolLinks }) => {
+    if (_isEmpty(coolLinks)) return null
+    return (
+        <div className="languages-block">
+            <div className="self-stretch flex-col justify-start items-start gap-3 flex my-4">
+                <div className="self-stretch text-slate-500 text-lg font-bold leading-3 tracking-tight mb-2 dark:text-gray-400">
+                    Cool Stuffs
+                </div>
+                {_map(coolLinks, (hItem, hIndex) => {
+                    const { title, type, furtherText, link } = hItem || {}
+                    return (
+                        <div
+                            key={`userinfo_languages_${hIndex}`}
+                            className="self-stretch justify-start items-center gap-1 inline-flex mb-4 last:mb-0"
+                        >
+                            <div className="w-5 h-5 relative">
+                                <div className="w-5 h-5 absolute ">
+                                    <FallbackImage src={`./commonicons/${type.toLowerCase()}.svg`} />
+                                </div>
+                            </div>
+                            <div className="ml-[0.2rem] grow shrink basis-0 flex-col justify-start items-start">
+                                <div className="self-stretch text-slate-600 text-xs font-medium leading-3 relative top-[1px] dark:text-gray-300">
+                                    {furtherText ? (
+                                        <HobbyInteractText text={title} hobbyItem = {hItem}  />
+                                    ) : (
+                                        <>{upperFirstLetter(title)}</>
                                     )}
                                 </div>
                             </div>

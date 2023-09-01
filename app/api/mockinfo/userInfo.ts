@@ -62,6 +62,10 @@ export default {
             { hobby: 'Table Tennis', type: 'tabletennis' },
             { hobby: 'Golf', type: 'golf' },
         ],
+        coolLinks: [
+            {title: 'Image Gallery',type:'gallery',link:'https://sir-teo.github.io/gallery', furtherText:'Photo Collection of Teo Zeng'},
+            {title: 'Aircraft Game',type:'aircraft',link:'https://sir-teo.github.io/aircraft',furtherText:'Homemade aircraft game'},
+        ],
     },
     status: 0,
 }

@@ -13,7 +13,7 @@ const Projects = () => {
                 </div>
                 <div className="self-stretch flex-col justify-start items-start pt-2 flex pb-2 relative">
                     {_map(data, (project, pIndex) => {
-                        const { name, tags, descriptions, url,} = project || {}
+                        const { name, tags, descriptions, url,demo,} = project || {}
                         const firstChar = getFirstCharEnglish(name, 'x')
                         const tagsText = _isEmpty(tags) ? undefined : tags.join(` · `)
                         return (
@@ -35,6 +35,16 @@ const Projects = () => {
                                             {name || ''}
                                         </div>
                                     </div>
+                                    {demo ? (
+                                    <a href = {demo} className="pl-4 grow shrink basis-0 tracking-tight">
+                                        <div className="float-right text-sm">
+                                            <div className="text-blue-500 text-xs font-medium leading-3 cursor-pointer w-20 text-right">
+                                                Demo
+                                                <img src="./misc/demo.svg" className="w-3 h-3 inline" />
+                                            </div>
+                                        </div>
+                                    </a>) : null
+                                    }
                                     {url ? (
                                     <a href = {url} className="pl-4 grow shrink basis-0 tracking-tight">
                                         <div className="float-right text-sm">
