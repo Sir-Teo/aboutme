@@ -87,7 +87,19 @@ const Experience = () => {
                 </div>
                 {/* Responsibilities */}
                 <div className="mt-4 pl-4 text-slate-500 text-sm font-normal tracking-tight dark:text-gray-400 text-left">
-                  <ReactMarkdown>{Responsibilities}</ReactMarkdown>
+                  <ReactMarkdown
+                    // Customizing the rendering of <a> tags to add underline
+                    components={{
+                      a: ({ node, ...props }) => (
+                        <a
+                          style={{ textDecoration: 'underline' }}
+                          {...props}
+                        />
+                      ),
+                    }}
+                  >
+                    {Responsibilities}
+                  </ReactMarkdown>
                 </div>
               </div>
             </div>
