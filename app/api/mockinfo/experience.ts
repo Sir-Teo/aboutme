@@ -3,7 +3,7 @@ export default {
     data: [
         // Apple
         {
-            logo: './commonicons/apple.svg', // company logo
+            logo: './commonicons/.svg', // company logo
             hireDate: '2021-07', // Date of hire
             lastDay: '2021-9', // Last day of work
             companyFullname: 'Cheese Fund', // Full name of the company
