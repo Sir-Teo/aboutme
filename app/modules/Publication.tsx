@@ -48,7 +48,7 @@ const ResearchExperience = () => {
                                         </div>
                                     ) : null}
                                         <div className="desc text-slate-600 text-sm font-normal leading-1 mt-2 dark:text-gray-300">
-                                        <a href = '../pdf/IUCrJournals_XRAIS_jun12.pdf' >Derek Mendez, James M. Holton, Artem Y. Lyubimov, Sabine Hollatz, Irimpan I. Mathews, Alexsander Cichosz, Vardan Martisoyan, <b><u>Teo Zeng</u></b>, Ryan Stofer, Robin Liu, Jinhu Song, Scott McPhillips, Mike Soltis, Aina E. Cohena. <b>XRAIS: Physics-informed artificial intelligence for monitoring crystallography experiments</b>. Submitted.</a>
+                                        <a href = 'https://journals.iucr.org/d/issues/2024/01/00/qi5003/index.html' >Mendez, D., Holton, J.M., Lyubimov, A.Y., Hollatz, S., Mathews, I.I., Cichosz, A., Martirosyan, V., Zeng, T., Stofer, R., Liu, R. and Song, J., 2024. Deep residual networks for crystallography trained on synthetic data. Acta Crystallographica Section D: Structural Biology, 80(1).</a>
                                         </div>
                                 </div>
                             </div>

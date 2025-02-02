@@ -2,6 +2,18 @@ export default {
     title: 'Research Experience',
     data: [
         {
+            url: 'https://github.com/Sir-Teo/HCC',
+            name: 'NYU Langone Health',
+            tags: ['Hybrid, NY', 'June 2024 - Present'],
+            descriptions: [
+                '• 4D MRI Brain Tumor Segmentation: Developed an automated tumor detection pipeline with 4D Brain MRIs, combining DBSCAN clustering with segmentation models (nnUnet, ResNet3D, MedSAM) and a custom loss function (Dice + BCE Loss), achieving a 25% improvement in F1-score and a 30% reduction in false negatives.',
+                '• Multimodal Acute Pancreatitis Severity Prediction: Architected a novel multimodal system integrating CT imaging with clinical variables and a vision transformer backbone, employing ensemble methods to achieve a 0.95 severe AUPRC on an external validation dataset.',
+                '• Hepatocellular Carcinoma Recurrence Prediction: Pioneered a transfer learning approach using DinoV2 as a feature extractor on abdominal MRIs; developed and validated a time-to-event model achieving 85% accuracy in predicting liver cancer recurrence.',
+                '• Collaborated with teams of radiologists, residents, and machine learning experts; authored and delivered manuscripts and presentations, influencing the adoption of advanced AI implementations within NYU Langone Health diagnostic and prognostic workflows.',
+            ],
+            poster: '../pdf/hcc_poster.pdf',
+        },
+        {
             url: 'https://github.com/pstat197/capstone-SLAC',
             name: 'Data Science Capstone',
             tags: ['Sep. 2022', 'Jun. 2023', 'UCSB'],
@@ -9,7 +21,6 @@ export default {
                 '• Spearheaded a year-long, intensive capstone sequence focused on x-ray diffraction research, maintaining a consistent engagement via biweekly team meetings.',
                 '• Deployed advanced reinforcement learning strategies using the ResNet model to train large-scale, raw crystallographic data sets, leveraging Google Cloud resources and campus-based SLURM computing clusters for maximum efficiency.',
                 '• Developed a predictive model with high accuracy in identifying inherent properties of crystallographic data derived from raw x-ray diffraction images, thereby promising to expedite materials research.',
-                '• Authored a comprehensive report documenting the project journey, challenges, solutions, and results. This detailed analysis helped bridge the gap between complex technical processes and the broader audience’s understanding, enhancing the potential for its application in future research.',
             ],
             poster: '../pdf/SLAC Poster.pdf',
         },
@@ -20,7 +31,6 @@ export default {
             descriptions: [
                 '• Engaged in a collaborative research project with Professor Michael Ludkovski, contributing as a key team member within a group of four, to explore probabilistic modeling in the realm of renewable energy generation.',
                 '• Utilized Python’s Pandas library for comprehensive time series data processing, conducting robust trend analysis of daily and seasonal energy generation using a diverse suite of ten statistical modeling techniques.',
-                '• Implemented detailed data visualization methodologies to study and understand risk patterns inherent in predictive models of 264 wind farm assets and 214 solar farm assets spanning an entire year in Texas.',
                 '• Leveraged three distinct analytical approaches to identify high-risk wind and solar assets, delivering crucial insights that paved the way for enhancements in the reliability and efficiency of the probabilistic model.',
             ],
         },
@@ -35,7 +45,7 @@ export default {
             ],
         },
         {
-            url: undefined,
+            url: 'https://viu.psych.ucsb.edu',
             name: 'Visual and Image Understanding Lab',
             tags: ['Mar. 2022', 'Jun. 2022', 'Research Assistant', 'UCSB'],
             descriptions: [
