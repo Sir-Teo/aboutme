@@ -12,7 +12,8 @@ export type LinkItem = {
 
 export const profile = {
     name: 'Teo Zeng',
-    tagline: 'I am Teo Zeng. I like traveling, running, basketball, researching, and playing video games.',
+    tagline:
+        'I am Teo Zeng. I like traveling, running, any sports with an emphasis on basketball, researching, and playing video games.',
     avatar: '/user/bearded-collie.jpg',
     // CC BY 2.0 attribution for the avatar photo (shown on hover).
     avatarCredit: 'Bearded Collie — photo by John Haslam (CC BY 2.0)',
@@ -33,7 +34,7 @@ export const links: LinkItem[] = [
     { label: 'LinkedIn', href: 'https://www.linkedin.com/in/teozeng/', icon: '/commonicons/linkedin.svg' },
     {
         label: 'Blog',
-        href: 'https://github.com/Sir-Teo/blogs',
+        href: 'https://sir-teo.github.io/blogs/',
         icon: '/misc/website.svg',
         iconDark: '/misc/website-dark.svg',
     },
