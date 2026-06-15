@@ -1,15 +1,20 @@
 import { profile } from './data/profile'
 import Links from './components/Links'
+import Image from 'next/image'
 
 export default function Home() {
     return (
         <main className="mx-auto max-w-2xl px-6 py-16 sm:py-24">
             <header className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
                 <span className="avatar-ring shrink-0">
-                    <img
+                    <Image
                         src={profile.avatar}
-                        alt={`${profile.name} — avatar`}
+                        alt={`${profile.name} avatar`}
                         title={profile.avatarCredit}
+                        width={96}
+                        height={96}
+                        priority
+                        unoptimized
                         className="h-24 w-24 shrink-0 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
                     />
                 </span>

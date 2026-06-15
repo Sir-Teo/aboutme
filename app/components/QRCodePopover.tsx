@@ -1,5 +1,7 @@
 'use client'
 
+import Image from 'next/image'
+
 interface QRCodePopoverProps {
     id: string
     isOpen: boolean
@@ -16,13 +18,13 @@ const QRCodePopover = ({ id, isOpen, qrCodeImg, label, onClose }: QRCodePopoverP
             id={id}
             role="dialog"
             aria-label={`${label} QR code`}
-            className="fixed left-1/2 top-1/2 z-50 w-64 max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-3 shadow-xl ring-1 ring-slate-200 sm:absolute sm:left-1/2 sm:top-full sm:mt-2 sm:w-56 sm:-translate-x-1/2 sm:translate-y-0 dark:ring-slate-700"
+            className="fixed left-1/2 top-1/2 z-50 w-64 max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-3 shadow-xl ring-1 ring-slate-200 sm:absolute sm:left-1/2 sm:top-full sm:mt-2 sm:w-56 sm:-translate-x-1/2 sm:translate-y-0 dark:bg-slate-900 dark:ring-slate-700"
         >
             <button
                 type="button"
                 onClick={onClose}
                 aria-label={`Close ${label} QR code`}
-                className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-white/90 text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:text-slate-900 dark:ring-slate-700"
+                className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-white/90 text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:text-slate-900 dark:bg-slate-950/90 dark:text-slate-400 dark:ring-slate-700 dark:hover:text-slate-100"
             >
                 <svg
                     viewBox="0 0 24 24"
@@ -36,7 +38,14 @@ const QRCodePopover = ({ id, isOpen, qrCodeImg, label, onClose }: QRCodePopoverP
                     <path d="M6 6l12 12M18 6 6 18" />
                 </svg>
             </button>
-            <img src={qrCodeImg} alt={`${label} QR code`} className="block w-full rounded-lg" />
+            <Image
+                src={qrCodeImg}
+                alt={`${label} QR code`}
+                width={224}
+                height={224}
+                unoptimized
+                className="block w-full rounded-lg"
+            />
         </div>
     )
 }

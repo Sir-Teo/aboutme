@@ -211,7 +211,7 @@ function applyTheme(theme: string) {
     c.remove('pride') // drop any legacy pride class
     try {
         localStorage.setItem('theme', theme)
-    } catch (e) {}
+    } catch {}
 }
 
 const ASCII = [
@@ -416,15 +416,16 @@ function loadPyodideRuntime(): Promise<any> {
     if (pyodidePromise) return pyodidePromise
     pyodidePromise = new Promise((resolve, reject) => {
         const w = window as any
-        const boot = () => w.loadPyodide({ indexURL: PYODIDE_BASE }).then(resolve, reject)
+        const rejectAndReset = (error: unknown) => {
+            pyodidePromise = null // allow a retry on the next invocation
+            reject(error)
+        }
+        const boot = () => w.loadPyodide({ indexURL: PYODIDE_BASE }).then(resolve, rejectAndReset)
         if (w.loadPyodide) return boot()
         const script = document.createElement('script')
         script.src = `${PYODIDE_BASE}pyodide.js`
         script.onload = boot
-        script.onerror = () => {
-            pyodidePromise = null // allow a retry on the next invocation
-            reject(new Error('failed to load the Python runtime'))
-        }
+        script.onerror = () => rejectAndReset(new Error('failed to load the Python runtime'))
         document.head.appendChild(script)
     })
     return pyodidePromise
@@ -602,6 +603,14 @@ export default function Terminal({ open, onClose }: { open: boolean; onClose: ()
     // Serialize pipelines so output always lands in submission order, even when a
     // slow command (e.g. `repos`) is followed by a fast one.
     const runRef = useRef<Promise<void>>(Promise.resolve())
+    const enqueue = useCallback((task: () => Promise<void>) => {
+        runRef.current = runRef.current
+            .catch(() => undefined)
+            .then(task)
+            .catch((e: any) => {
+                setLines(l => [...l, { text: `terminal: ${e?.message ?? 'unexpected error'}`, tone: 'err' }])
+            })
+    }, [])
 
     const pathStr = formatCwd(cwd)
     const promptStr = formatPrompt(cwd)
@@ -746,7 +755,7 @@ export default function Terminal({ open, onClose }: { open: boolean; onClose: ()
                         await navigator.clipboard.writeText(link.handle)
                         return [{ text: `copied ${link.label} handle: ${link.handle}`, tone: 'accent' }]
                     } catch {
-                        return [{ text: `open: could not copy ${link.label} handle`, tone: 'err' }]
+                        return [{ text: `open: could not copy ${link.label} handle: ${link.handle}`, tone: 'err' }]
                     }
                 }
                 return [{ text: `${link.label}: scan the QR code shown on the page`, tone: 'accent' }]
@@ -1005,7 +1014,7 @@ export default function Terminal({ open, onClose }: { open: boolean; onClose: ()
             { prompt: formatPrompt(cwdRef.current), text: `python ${file}`, tone: 'cmd' },
         ])
         if (!pyodideReady()) setLines(l => [...l, { text: 'loading Python runtime (first run only)…', tone: 'dim' }])
-        runRef.current = runRef.current.then(async () => {
+        enqueue(async () => {
             const out = await runPython(code)
             if (out.length) setLines(l => [...l, ...out])
         })
@@ -1066,7 +1075,7 @@ export default function Terminal({ open, onClose }: { open: boolean; onClose: ()
         setRepl({ buffer: [] })
         const code = nextBuf.join('\n')
         if (!code.trim()) return
-        runRef.current = runRef.current.then(async () => {
+        enqueue(async () => {
             const out = await runPython(code)
             if (out.length) setLines(l => [...l, ...out])
         })
@@ -1086,8 +1095,21 @@ export default function Terminal({ open, onClose }: { open: boolean; onClose: ()
             return
         }
         const { body, target, append } = parseRedirect(cmd)
+        let redirectTarget: string | null = null
+        if (target !== null) {
+            const redirectTokens = tokenize(target)
+            if (!redirectTokens.length) {
+                setLines(l => [...l, echo, { text: 'syntax error near unexpected token `newline`', tone: 'err' }])
+                return
+            }
+            if (redirectTokens.length > 1) {
+                setLines(l => [...l, echo, { text: `ambiguous redirect: ${target}`, tone: 'err' }])
+                return
+            }
+            redirectTarget = redirectTokens[0]
+        }
         const stages = splitPipes(body)
-        if (!target && stages.length === 1) {
+        if (target === null && stages.length === 1) {
             const tokens = tokenize(stages[0])
             const first = (tokens[0] ?? '').toLowerCase()
             if (first === 'clear') {
@@ -1117,16 +1139,16 @@ export default function Terminal({ open, onClose }: { open: boolean; onClose: ()
             }
         }
         setLines(l => [...l, echo])
-        runRef.current = runRef.current.then(async () => {
+        enqueue(async () => {
             const out = await runPipeline(stages)
-            if (target) {
+            if (redirectTarget !== null) {
                 // On error, surface it and don't write; otherwise redirect stdout to the file.
                 if (out.some(l => l.tone === 'err')) {
                     setLines(l => [...l, ...out])
                     return
                 }
                 const content = out.map(l => l.text).join('\n')
-                const err = writeFile(fs, cwdRef.current, target, content ? content + '\n' : '', append)
+                const err = writeFile(fs, cwdRef.current, redirectTarget, content ? content + '\n' : '', append)
                 if (err) setLines(l => [...l, { text: `bash: ${err}`, tone: 'err' }])
                 return
             }
@@ -1218,7 +1240,7 @@ export default function Terminal({ open, onClose }: { open: boolean; onClose: ()
         <div
             aria-hidden={!open}
             className={`grid transition-all duration-300 ease-out motion-reduce:transition-none ${
-                open ? 'mt-3 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                open ? 'mt-3 grid-rows-[1fr] opacity-100' : 'pointer-events-none grid-rows-[0fr] opacity-0'
             }`}
         >
             <div className="min-h-0 overflow-hidden">
@@ -1226,7 +1248,7 @@ export default function Terminal({ open, onClose }: { open: boolean; onClose: ()
                     <button
                         type="button"
                         onClick={onClose}
-                        aria-label="Close terminal"
+                        aria-label="Close terminal panel"
                         tabIndex={open ? 0 : -1}
                         className="absolute right-2 top-2 z-10 grid h-6 w-6 place-items-center rounded text-slate-600 transition hover:text-slate-300"
                     >
@@ -1258,6 +1280,7 @@ export default function Terminal({ open, onClose }: { open: boolean; onClose: ()
                                 autoCapitalize="off"
                                 autoCorrect="off"
                                 aria-label={`Editing ${editor.file}`}
+                                tabIndex={open ? 0 : -1}
                                 className="flex-1 resize-none bg-transparent px-3.5 py-3 leading-relaxed text-slate-100 caret-emerald-400 outline-none"
                             />
                             {/* Tappable controls so the editor works on touch devices too,
@@ -1266,6 +1289,7 @@ export default function Terminal({ open, onClose }: { open: boolean; onClose: ()
                                 <button
                                     type="button"
                                     onClick={saveEditorWithMsg}
+                                    tabIndex={open ? 0 : -1}
                                     className="rounded px-2.5 py-1 text-[13px] text-slate-200 ring-1 ring-slate-700 transition hover:bg-slate-800 active:bg-slate-700"
                                 >
                                     Save
@@ -1273,6 +1297,7 @@ export default function Terminal({ open, onClose }: { open: boolean; onClose: ()
                                 <button
                                     type="button"
                                     onClick={runEditorWithPython}
+                                    tabIndex={open ? 0 : -1}
                                     className="rounded bg-emerald-600/90 px-2.5 py-1 text-[13px] text-white transition hover:bg-emerald-600 active:bg-emerald-700"
                                 >
                                     ▶ Run
@@ -1280,6 +1305,7 @@ export default function Terminal({ open, onClose }: { open: boolean; onClose: ()
                                 <button
                                     type="button"
                                     onClick={() => exitEditor(true)}
+                                    tabIndex={open ? 0 : -1}
                                     className="rounded px-2.5 py-1 text-[13px] text-slate-400 ring-1 ring-slate-700 transition hover:bg-slate-800 active:bg-slate-700"
                                 >
                                     Exit

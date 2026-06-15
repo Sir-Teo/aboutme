@@ -14,7 +14,7 @@
     "prettier:single": "./node_modules/.bin/prettier --single-quote --no-semi --trailing-comma es5 --print-width 120 --tab-width 4 --arrow-parens avoid --write",
     "prettier": "./node_modules/.bin/prettier --single-quote --no-semi --trailing-comma es5 --print-width 120 --tab-width 4 --arrow-parens avoid --write \"app/**/*.{js,jsx,ts,tsx}\"",
     "prettier:svg": "./node_modules/.bin/prettier --single-quote --no-semi --trailing-comma es5 --print-width 120 --tab-width 4 --arrow-parens avoid --write \"public/**/*.svg\"",
-    "prettier:check": "npm run prettier -- --list-different",
+    "prettier:check": "./node_modules/.bin/prettier --single-quote --no-semi --trailing-comma es5 --print-width 120 --tab-width 4 --arrow-parens avoid --check \"app/**/*.{js,jsx,ts,tsx}\"",
     "lint-staged": "lint-staged"
   },
   "precommit": "lint-staged",

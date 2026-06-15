@@ -99,9 +99,16 @@ function ChipInner({ link }: { link: LinkItem }) {
 
 function LinkChip({ link }: { link: LinkItem }) {
     const [open, setOpen] = useState(false)
-    const [copied, setCopied] = useState(false)
+    const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'showing'>('idle')
     const qrPopoverId = useId()
     const qrWrapRef = useRef<HTMLDivElement>(null)
+    const copyResetRef = useRef<number | null>(null)
+
+    useEffect(() => {
+        return () => {
+            if (copyResetRef.current !== null) window.clearTimeout(copyResetRef.current)
+        }
+    }, [])
 
     useEffect(() => {
         if (!open || !link.qrcode) return
@@ -148,31 +155,39 @@ function LinkChip({ link }: { link: LinkItem }) {
 
     // Handle-only link (Discord): copy to clipboard on click.
     if (link.handle) {
+        const handle = link.handle
         const copy = async () => {
+            if (copyResetRef.current !== null) window.clearTimeout(copyResetRef.current)
             try {
                 if (!navigator.clipboard) throw new Error('Clipboard API unavailable')
-                await navigator.clipboard.writeText(link.handle as string)
-                setCopied(true)
-                window.setTimeout(() => setCopied(false), 1500)
+                await navigator.clipboard.writeText(handle)
+                setCopyStatus('copied')
             } catch {
-                setCopied(false)
+                setCopyStatus('showing')
             }
+            copyResetRef.current = window.setTimeout(() => setCopyStatus('idle'), 1800)
         }
+        const visibleLink =
+            copyStatus === 'copied'
+                ? { ...link, label: 'Copied!' }
+                : copyStatus === 'showing'
+                ? { ...link, label: handle }
+                : link
         return (
             <button
                 type="button"
                 onClick={copy}
-                aria-label={`Copy ${link.label} handle ${link.handle}`}
-                title={`${link.handle} — click to copy`}
+                aria-label={`Copy ${link.label} handle ${handle}`}
+                title={`${handle} - click to copy`}
                 className="cursor-pointer"
             >
-                <ChipInner link={copied ? { ...link, label: 'Copied!' } : link} />
+                <ChipInner link={visibleLink} />
             </button>
         )
     }
 
     return (
-        <a href={link.href} target="_blank" rel="noreferrer">
+        <a href={link.href} target="_blank" rel="noopener noreferrer">
             <ChipInner link={link} />
         </a>
     )
