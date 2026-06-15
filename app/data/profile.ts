@@ -67,6 +67,12 @@ export const links: LinkItem[] = [
         color: '#1F2937',
         colorDark: '#cbd5e1',
     },
+    {
+        label: 'Chess.com',
+        href: 'https://www.chess.com/member/masterteo1205',
+        icon: '/icons/chess.svg',
+        color: '#81B64C',
+    },
     { label: 'Discord', handle: 'teozeng', icon: '/icons/discord.svg', color: '#5865F2', colorDark: '#8b93f8' },
     { label: 'WeChat', qrcode: '/user/wechat_qrcode.jpg', icon: '/icons/wechat.svg', color: '#07C160' },
 ]
