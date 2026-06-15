@@ -6,3 +6,57 @@ html {
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
 }
+
+/* Brand-colored link icons (CSS mask filled with each link's --ic color).
+   In dark mode, near-black brand colors fall back to a lighter --icd. */
+.link-icon {
+    background-color: var(--ic, currentColor);
+}
+
+.dark .link-icon {
+    background-color: var(--icd, var(--ic, currentColor));
+}
+
+/* Pride theme: light base with tasteful rainbow accents. */
+.pride body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    z-index: 60;
+    background: linear-gradient(
+        90deg,
+        #e40303 0%,
+        #ff8c00 20%,
+        #ffed00 40%,
+        #008026 60%,
+        #004dff 80%,
+        #750787 100%
+    );
+}
+
+.pride .site-name {
+    display: inline-block;
+    background: linear-gradient(90deg, #e40303, #ff8c00, #008026, #004dff, #750787);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+}
+
+/* Rainbow ring around the avatar; the wrapper sits flush in other themes. */
+.avatar-ring {
+    display: inline-flex;
+    border-radius: 9999px;
+}
+
+.pride .avatar-ring {
+    padding: 3px;
+    background: conic-gradient(from 0deg, #e40303, #ff8c00, #ffed00, #008026, #004dff, #750787, #e40303);
+}
+
+.pride .avatar-ring img {
+    box-shadow: none !important;
+}

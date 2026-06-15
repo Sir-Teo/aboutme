@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import QRCodePopover from './QRCodePopover'
 import { links, type LinkItem } from '../data/profile'
 
@@ -21,9 +21,25 @@ export default function Links() {
 
 function ChipInner({ link }: { link: LinkItem }) {
     return (
-        <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:ring-slate-300 dark:bg-slate-800 dark:ring-slate-700 dark:hover:ring-slate-600">
-            <img src={link.icon} alt="" className={`h-4 w-4 ${link.iconDark ? 'dark:hidden' : ''}`} />
-            {link.iconDark ? <img src={link.iconDark} alt="" className="hidden h-4 w-4 dark:block" /> : null}
+        <span className="group inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:ring-slate-300 dark:bg-slate-800 dark:ring-slate-700 dark:hover:ring-slate-600">
+            <span
+                aria-hidden
+                className="link-icon h-4 w-4 shrink-0"
+                style={
+                    {
+                        '--ic': link.color,
+                        '--icd': link.colorDark,
+                        maskImage: `url(${link.icon})`,
+                        WebkitMaskImage: `url(${link.icon})`,
+                        maskRepeat: 'no-repeat',
+                        WebkitMaskRepeat: 'no-repeat',
+                        maskPosition: 'center',
+                        WebkitMaskPosition: 'center',
+                        maskSize: 'contain',
+                        WebkitMaskSize: 'contain',
+                    } as CSSProperties
+                }
+            />
             <span className="text-slate-700 dark:text-slate-200">{link.label}</span>
         </span>
     )

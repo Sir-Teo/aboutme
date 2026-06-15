@@ -4,8 +4,9 @@
 export type LinkItem = {
     label: string
     href?: string // omit/empty to hide the link
-    icon: string
-    iconDark?: string // optional light-colored variant shown in dark mode
+    icon: string // monochrome silhouette in /public/icons; tinted to `color` via CSS mask
+    color: string // brand color for the icon
+    colorDark?: string // override for dark mode when the brand color is too dark to read
     qrcode?: string // for QR-only links like WeChat
     handle?: string // for copy-on-click handles with no URL (e.g. Discord)
 }
@@ -23,31 +24,49 @@ export const links: LinkItem[] = [
     {
         label: 'GitHub',
         href: 'https://github.com/Sir-Teo',
-        icon: '/commonicons/github.svg',
-        iconDark: '/commonicons/github-dark.svg',
+        icon: '/icons/github.svg',
+        color: '#181717',
+        colorDark: '#f0f6fc',
     },
     {
         label: 'Google Scholar',
         href: 'https://scholar.google.com/citations?user=lLhU3igAAAAJ&hl=en',
-        icon: '/commonicons/google-scholar.svg',
+        icon: '/icons/googlescholar.svg',
+        color: '#4285F4',
     },
-    { label: 'LinkedIn', href: 'https://www.linkedin.com/in/teozeng/', icon: '/commonicons/linkedin.svg' },
+    { label: 'Kaggle', href: 'https://www.kaggle.com/sirteo', icon: '/icons/kaggle.svg', color: '#20BEFF' },
     {
-        label: 'Blog',
-        href: 'https://sir-teo.github.io/blogs/',
-        icon: '/misc/website.svg',
-        iconDark: '/misc/website-dark.svg',
+        label: 'LinkedIn',
+        href: 'https://www.linkedin.com/in/teozeng/',
+        icon: '/icons/linkedin.svg',
+        color: '#0A66C2',
+        colorDark: '#4DA3E4',
     },
+    { label: 'Blog', href: 'https://sir-teo.github.io/blogs/', icon: '/icons/blog.svg', color: '#0EA5E9' },
     {
         label: 'Email',
         href: 'mailto:zengwc.teo2016@outlook.com',
-        icon: '/misc/email.svg',
-        iconDark: '/misc/email-dark.svg',
+        icon: '/icons/email.svg',
+        color: '#0078D4',
+        colorDark: '#3FA3F0',
     },
-    { label: 'Instagram', href: 'https://www.instagram.com/sir_teo', icon: '/commonicons/instagram.svg' },
-    { label: 'YouTube', href: 'https://www.youtube.com/@teozeng3999', icon: '/commonicons/youtube.svg' },
-    { label: 'Bilibili', href: 'https://space.bilibili.com/299736746', icon: '/commonicons/bilibili.svg' },
-    { label: 'OGS', href: 'https://online-go.com/user/view/622443', icon: '/commonicons/online-go.svg' },
-    { label: 'Discord', handle: 'teozeng', icon: '/commonicons/discord.svg' },
-    { label: 'WeChat', qrcode: '/user/wechat_qrcode.jpg', icon: '/commonicons/wechat.svg' },
+    { label: 'Instagram', href: 'https://www.instagram.com/sir_teo', icon: '/icons/instagram.svg', color: '#E4405F' },
+    { label: 'YouTube', href: 'https://www.youtube.com/@teozeng3999', icon: '/icons/youtube.svg', color: '#FF0000' },
+    { label: 'Bilibili', href: 'https://space.bilibili.com/299736746', icon: '/icons/bilibili.svg', color: '#FB7299' },
+    {
+        label: 'Reddit',
+        href: 'https://www.reddit.com/user/Puzzleheaded_Bid_178/',
+        icon: '/icons/reddit.svg',
+        color: '#FF4500',
+    },
+    { label: 'Strava', href: 'https://www.strava.com/athletes/206183585', icon: '/icons/strava.svg', color: '#FC4C02' },
+    {
+        label: 'OGS',
+        href: 'https://online-go.com/user/view/622443',
+        icon: '/icons/online-go.svg',
+        color: '#1F2937',
+        colorDark: '#cbd5e1',
+    },
+    { label: 'Discord', handle: 'teozeng', icon: '/icons/discord.svg', color: '#5865F2', colorDark: '#8b93f8' },
+    { label: 'WeChat', qrcode: '/user/wechat_qrcode.jpg', icon: '/icons/wechat.svg', color: '#07C160' },
 ]

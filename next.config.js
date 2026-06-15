@@ -6,7 +6,9 @@ const nextConfig = {
     distDir: process.env.NODE_ENV === 'production' ? 'publish' : '.next',
     cleanDistDir: true,
     dir: "./app/",
-    assetPrefix: ".",
+    // Relative asset paths are only needed for the static export hosted on Firebase.
+    // In `next dev` this breaks `/_next` asset URLs (CSS 404s), so apply it prod-only.
+    assetPrefix: process.env.NODE_ENV === 'production' ? '.' : undefined,
     productionBrowserSourceMaps: true,
     reactStrictMode: true,
     webpack: (config, options) => {
