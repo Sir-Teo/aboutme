@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 }
 
 // Applies the saved (or system) theme before first paint to avoid a flash.
-const themeInit = `(function(){try{var t=localStorage.getItem('theme');var m=window.matchMedia('(prefers-color-scheme: dark)').matches;var c=document.documentElement.classList;if(t==='dark'||(!t&&m)){c.add('dark')}else if(t==='pride'){c.add('pride')}}catch(e){}})();`
+const themeInit = `(function(){try{var t=localStorage.getItem('theme');var m=window.matchMedia('(prefers-color-scheme: dark)').matches;if(t==='dark'||(!t&&m)){document.documentElement.classList.add('dark')}}catch(e){}})();`
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (

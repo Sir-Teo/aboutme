@@ -6,10 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "next lint --dir app",
     "eslint": "./node_modules/.bin/eslint \"app/**/*.{js,jsx,ts,tsx}\" --ignore-pattern \"app/lib/\" --ignore-pattern \"app/shared/\"",
     "check-types": "tsc --noemit",
-    "eslint:commit": "git diff --cached --name-only | grep -E 'src.*\\.[jt]sx?$' | xargs ./node_modules/.bin/eslint --quiet",
+    "eslint:commit": "./node_modules/.bin/eslint --quiet",
     "eslint:quiet": "./node_modules/.bin/eslint \"app/**/*.{js,jsx,ts,tsx}\" --ignore-pattern \"app/lib/\" --ignore-pattern \"app/shared/\" --quiet",
     "prettier:single": "./node_modules/.bin/prettier --single-quote --no-semi --trailing-comma es5 --print-width 120 --tab-width 4 --arrow-parens avoid --write",
     "prettier": "./node_modules/.bin/prettier --single-quote --no-semi --trailing-comma es5 --print-width 120 --tab-width 4 --arrow-parens avoid --write \"app/**/*.{js,jsx,ts,tsx}\"",
@@ -18,9 +18,12 @@
     "lint-staged": "lint-staged"
   },
   "precommit": "lint-staged",
+  "eslintConfig": {
+    "extends": "next/core-web-vitals"
+  },
   "lint-staged": {
     "app/**/*.{js,jsx,ts,tsx}": [
-      "npm run eslint:commit",
+      "npm run eslint:commit --",
       "prettier --single-quote --no-semi --trailing-comma es5 --print-width 120 --tab-width 4 --arrow-parens avoid --write  \"!app/lib/**\" \"!app/shared/**\"",
       "git add"
     ]
