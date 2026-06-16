@@ -7,16 +7,19 @@ const nextConfig = {
     // uses the default .next/ so the dev server never clobbers the deployable build.
     distDir: process.env.NODE_ENV === 'production' ? 'publish' : '.next',
     cleanDistDir: true,
-    // Relative asset paths are only needed for the static export hosted on Firebase.
-    // In `next dev` this breaks `/_next` asset URLs (CSS 404s), so apply it prod-only.
-    assetPrefix: process.env.NODE_ENV === 'production' ? '.' : undefined,
-    productionBrowserSourceMaps: true,
+    productionBrowserSourceMaps: false,
     reactStrictMode: true,
     webpack: (config, options) => {
         config.experiments = {
             asyncWebAssembly: true,
             layers: true,
         }
+        config.ignoreWarnings = [
+            ...(config.ignoreWarnings || []),
+            warning =>
+                /@huggingface\/transformers\/dist\/transformers\.web\.js/.test(String(warning.module?.resource)) &&
+                /Accessing import\.meta directly is unsupported/.test(String(warning.message)),
+        ]
         // Transformers.js (used by the on-device Ask AI) only ever runs in the
         // browser (WebGPU/WASM). Its package `exports` route Next's server compile
         // to a Node build that bundles onnxruntime-node's native .node binary and
