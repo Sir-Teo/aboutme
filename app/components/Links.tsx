@@ -2,15 +2,22 @@
 import { forwardRef, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import QRCodePopover from './QRCodePopover'
 import Terminal from './Terminal'
+import AskAI, { AskAIChip } from './AskAI'
 import { links, type LinkItem } from '../data/profile'
 
 export default function Links() {
     const [termOpen, setTermOpen] = useState(false)
+    const [aiOpen, setAiOpen] = useState(false)
     const termChipRef = useRef<HTMLButtonElement>(null)
+    const aiChipRef = useRef<HTMLButtonElement>(null)
     // Return focus to the launcher when the panel closes (keyboard accessibility).
     const closeTerm = () => {
         setTermOpen(false)
         termChipRef.current?.focus()
+    }
+    const closeAi = () => {
+        setAiOpen(false)
+        aiChipRef.current?.focus()
     }
     return (
         <>
@@ -24,11 +31,15 @@ export default function Links() {
                         </li>
                     )
                 })}
-                {/* Terminal launcher — sits as the last chip and toggles the panel below. */}
+                {/* Ask AI + Terminal launchers — sit as the last chips, each toggling its panel below. */}
+                <li>
+                    <AskAIChip ref={aiChipRef} active={aiOpen} onClick={() => setAiOpen(o => !o)} />
+                </li>
                 <li>
                     <TerminalChip ref={termChipRef} active={termOpen} onClick={() => setTermOpen(o => !o)} />
                 </li>
             </ul>
+            <AskAI open={aiOpen} onClose={closeAi} />
             <Terminal open={termOpen} onClose={closeTerm} />
         </>
     )
