@@ -2,17 +2,17 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import { profile, links, bio } from '../data/profile'
 
-// An "Ask AI" pill that runs LiquidAI's LFM2.5-1.2B-Thinking model fully in the
-// browser via Transformers.js (@huggingface/transformers) on WebGPU — no
-// backend, no API keys, nothing leaves the device. The runtime and the ~1.2 GB
-// model are lazy-loaded on first use, so they cost nothing on page load. WebGPU
-// is required; where it is missing the panel explains that instead of breaking.
+// An "Ask AI" pill that runs LiquidAI's LFM2.5-350M model fully in the browser
+// via Transformers.js (@huggingface/transformers) on WebGPU — no backend, no API
+// keys, nothing leaves the device. The runtime and the ~280 MB model are
+// lazy-loaded on first use, so they cost nothing on page load. WebGPU is
+// required; where it is missing the panel explains that instead of breaking.
 
 type Role = 'user' | 'assistant'
 // `reasoning` holds the model's streamed chain-of-thought (assistant turns only).
 type Msg = { role: Role; content: string; reasoning?: string }
 
-const MODEL_ID = 'LiquidAI/LFM2.5-1.2B-Thinking-ONNX'
+const MODEL_ID = 'LiquidAI/LFM2.5-350M-ONNX'
 const DTYPE = 'q4'
 
 // WebGPU availability gates whether we can run at all.
@@ -45,9 +45,10 @@ function systemPrompt(): string {
     ].join('\n')
 }
 
-// LFM2.5-Thinking streams its chain-of-thought inside <think>…</think> before
-// the answer. We surface both: the reasoning (shown live, muted) and the final
-// reply. Everything up to </think> is reasoning; everything after is the answer.
+// Some LFM2.5 variants (the "-Thinking" ones) stream a chain-of-thought inside
+// <think>…</think> before the answer; plain instruct variants don't. Handle both:
+// surface reasoning live (muted) when present, otherwise stream straight to the
+// answer. Everything up to </think> is reasoning; everything after is the answer.
 function parseThinking(raw: string): { reasoning: string; answer: string } {
     // Strip chat special tokens (e.g. <|im_end|>) and the opening <think> tag.
     const clean = (s: string) =>
@@ -59,8 +60,10 @@ function parseThinking(raw: string): { reasoning: string; answer: string } {
     if (end !== -1) {
         return { reasoning: clean(raw.slice(0, end)), answer: clean(raw.slice(end + '</think>'.length)) }
     }
-    // No closing tag yet — still reasoning, no answer.
-    return { reasoning: clean(raw), answer: '' }
+    // No closing tag yet. If a <think> block was opened it's still reasoning;
+    // otherwise this is a non-thinking model and the text is the answer.
+    if (raw.includes('<think>')) return { reasoning: clean(raw), answer: '' }
+    return { reasoning: '', answer: clean(raw) }
 }
 
 const SUGGESTIONS = ['Who is Teo?', 'What sports does Teo like?', 'Where can I find Teo online?']
