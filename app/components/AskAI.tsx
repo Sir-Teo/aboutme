@@ -267,7 +267,9 @@ function completeModelAnswer(text: string): string {
     if (!ellipsized && /[.!?]$/.test(candidate)) return candidate
 
     const sentenceEnds = Array.from(candidate.matchAll(/[.!?](?=\s+[A-Z0-9"'(]|$)/g))
-    const lastEnd = sentenceEnds.at(-1)
+    // Index access rather than Array.prototype.at(): `.at()` is a runtime method
+    // (not down-levelled by the compiler) and throws on older Safari/WebViews.
+    const lastEnd = sentenceEnds[sentenceEnds.length - 1]
     if (lastEnd?.index !== undefined && lastEnd.index >= Math.min(30, candidate.length / 2)) {
         return candidate.slice(0, lastEnd.index + 1)
     }
@@ -549,10 +551,18 @@ export default function AskAI({ open, onClose }: { open: boolean; onClose: () =>
         generation?.reject(new Error(message))
     }, [])
 
-    const getWorker = useCallback(() => {
+    const getWorker = useCallback((): Worker | null => {
         if (workerRef.current) return workerRef.current
 
-        const worker = new Worker(new URL('./AskAI.worker.ts', import.meta.url), { type: 'module' })
+        let worker: Worker
+        try {
+            // Module workers are unsupported on older Safari/Firefox/WebViews;
+            // construction can throw there. Callers treat null as "no on-device
+            // runtime" and degrade to the instant responder.
+            worker = new Worker(new URL('./AskAI.worker.ts', import.meta.url), { type: 'module' })
+        } catch {
+            return null
+        }
         worker.onmessage = (event: MessageEvent<AskAIWorkerMessage>) => {
             const message = event.data
 
@@ -616,9 +626,21 @@ export default function AskAI({ open, onClose }: { open: boolean; onClose: () =>
             }
         }
         worker.onerror = event => {
-            setStatus('error')
+            // A worker-script-level failure means this worker is dead — tear it down
+            // so the next send doesn't reuse a hung instance.
             setProgress('')
-            failActiveGeneration(event.message || 'Ask AI worker failed.')
+            worker.terminate()
+            if (workerRef.current === worker) workerRef.current = null
+            if (generationRef.current) {
+                // An in-flight turn: reject so `send` falls back to an instant answer.
+                setStatus('error')
+                failActiveGeneration(event.message || 'Ask AI worker failed.')
+                return
+            }
+            // No active turn (e.g. prewarm) and the model can't run here at all —
+            // degrade to the instant responder instead of showing a stuck panel.
+            setRuntime(INSTANT_MODE)
+            setStatus('ready')
         }
         workerRef.current = worker
         return worker
@@ -718,7 +740,10 @@ export default function AskAI({ open, onClose }: { open: boolean; onClose: () =>
     useEffect(() => {
         if (!open || !runtime || runtime.device === 'instant') return
         if (workerRef.current || status === 'error') return
-        getWorker().postMessage({ type: 'warm', mode: runtime })
+        const worker = getWorker()
+        // No worker support → on-device model can't run; fall back to instant.
+        if (worker) worker.postMessage({ type: 'warm', mode: runtime })
+        else setRuntime(INSTANT_MODE)
     }, [open, runtime, status, getWorker])
 
     const onScroll = () => {
@@ -774,6 +799,8 @@ export default function AskAI({ open, onClose }: { open: boolean; onClose: () =>
                 }
 
                 const worker = getWorker()
+                // Browser can't run a worker → answer from the profile responder.
+                if (!worker) throw new Error('Web Workers are unavailable in this browser.')
                 const id = uid()
                 const promptMessages = modelPromptMessages(history, mode)
 
