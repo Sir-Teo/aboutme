@@ -21,3 +21,47 @@ html {
     display: inline-flex;
     border-radius: 9999px;
 }
+
+.ask-ai-shell {
+    scroll-margin-block: 12px;
+}
+
+.ask-ai-panel {
+    height: clamp(220px, 55vh, 420px);
+}
+
+@supports (height: 100dvh) {
+    .ask-ai-panel {
+        height: clamp(220px, 55dvh, 420px);
+    }
+}
+
+@media (max-width: 639px) {
+    .ask-ai-shell-open {
+        position: fixed;
+        left: 1rem;
+        right: 1rem;
+        bottom: max(1rem, env(safe-area-inset-bottom));
+        z-index: 40;
+        display: block;
+        height: min(70vh, calc(100vh - 2rem));
+        margin-top: 0;
+        max-height: calc(100vh - 2rem);
+    }
+
+    .ask-ai-shell-open .ask-ai-clip {
+        height: 100%;
+    }
+
+    .ask-ai-shell-open .ask-ai-panel {
+        height: 100%;
+        max-height: 100%;
+    }
+
+    @supports (height: 100dvh) {
+        .ask-ai-shell-open {
+            height: min(70dvh, calc(100dvh - 2rem));
+            max-height: calc(100dvh - 2rem);
+        }
+    }
+}
