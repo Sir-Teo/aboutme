@@ -175,9 +175,15 @@ function deviceMemoryGB(): number | null {
     return typeof memory === 'number' && Number.isFinite(memory) && memory > 0 ? memory : null
 }
 
-function hasMemoryFor(minGb: number): boolean {
+// Whether to load the larger 350M model on WebGPU. Use WebGPU on any device that
+// can run it with enough memory — including phones. When deviceMemory is reported
+// (Chrome/Android/Edge), gate on the real value. When it's unknown (Safari/iOS,
+// Firefox), assume desktops are fine but stay conservative on mobile, where a
+// 350M-model OOM can kill the tab and the lighter WASM model is the safer default.
+function hasMemoryForWebGPU(): boolean {
     const memory = deviceMemoryGB()
-    return memory === null || memory >= minGb
+    if (memory !== null) return memory >= WEBGPU_MIN_MEMORY_GB
+    return !likelyMobileBrowser()
 }
 
 function memoryCappedWasmMode(): RuntimeMode {
@@ -189,11 +195,11 @@ function memoryCappedWasmMode(): RuntimeMode {
 }
 
 async function detectRuntime(): Promise<RuntimeMode | false> {
-    // Phones/tablets stay on the lighter WASM model: mobile WebGPU is memory-risky
-    // for a 350M model (and these browsers rarely report deviceMemory to gate it),
-    // so loading it can crash the tab. Desktops still get WebGPU when available.
-    const mobile = likelyMobileBrowser()
-    if (!mobile && hasMemoryFor(WEBGPU_MIN_MEMORY_GB) && (await webgpuAvailable())) return WEBGPU_MODE
+    // Prefer WebGPU on any device that exposes a working adapter/device and has
+    // enough memory — phones included (see hasMemoryForWebGPU). The probe is the
+    // authority on compatibility; the worker still falls back to WASM if ONNX
+    // rejects the model on this device.
+    if (hasMemoryForWebGPU() && (await webgpuAvailable())) return WEBGPU_MODE
 
     if (wasmAvailable()) {
         return memoryCappedWasmMode()
