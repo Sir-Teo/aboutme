@@ -1,0 +1,33 @@
+name: Deploy to Firebase Hosting
+
+# Builds the Next static export and deploys it to Firebase Hosting on every
+# push to main. Requires one repo secret: FIREBASE_SERVICE_ACCOUNT — a Firebase
+# service-account JSON with the "Firebase Hosting Admin" role.
+# (Firebase console -> Project settings -> Service accounts -> Generate key,
+#  then add it under GitHub repo Settings -> Secrets -> Actions.)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: personal-website-3bc37
