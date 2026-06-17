@@ -251,41 +251,6 @@ const TOOLS: Record<string, ToolDef> = {
             })
         },
     },
-    get_profile_info: {
-        schema: {
-            type: 'function',
-            function: {
-                name: 'get_profile_info',
-                description:
-                    'Look up facts about Teo Zeng (the owner of this website) — work, education, research, projects, skills, links, or interests.',
-                parameters: {
-                    type: 'object',
-                    properties: {
-                        query: {
-                            type: 'string',
-                            description: 'What to look up, e.g. "education", "work", "projects", "links".',
-                        },
-                    },
-                    required: ['query'],
-                },
-            },
-        },
-        run: (args, ctx) => {
-            const ctxText = ctx.toolContext || ''
-            if (!ctxText) return 'No profile information is available.'
-            const query = String(args?.query ?? '')
-                .toLowerCase()
-                .trim()
-            if (!query) return ctxText
-            const lines = ctxText.split('\n').filter(Boolean)
-            const terms = query.split(/\s+/).filter(t => t.length > 2)
-            const matches = lines.filter(line => {
-                const l = line.toLowerCase()
-                return terms.some(t => l.includes(t))
-            })
-            return (matches.length ? matches : lines).join('\n')
-        },
-    },
 }
 
 function toolSchemas(): any[] {

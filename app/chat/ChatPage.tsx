@@ -1,8 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
-import { profile, bio, links } from '../data/profile'
 
 // ---- Types ----------------------------------------------------------------
 
@@ -276,7 +274,7 @@ function parseThinking(raw: string): { reasoning: string; answer: string } {
 
 // ---- Persistence ----------------------------------------------------------
 
-const STORAGE_KEY = 'teo.chat.v2'
+const STORAGE_KEY = 'localchat.history.v1'
 
 function loadHistory(): { convs: Conversation[]; activeId: string } | null {
     try {
@@ -317,20 +315,14 @@ function loadHistory(): { convs: Conversation[]; activeId: string } | null {
 
 // ---- Prompt context -------------------------------------------------------
 
-// Fed to the get_profile_info tool so the agent can ground answers about Teo.
-const TOOL_CONTEXT = [bio, '', 'Public links:', ...links.filter(l => l.href).map(l => `- ${l.label}: ${l.href}`)].join(
-    '\n'
-)
-
 const SYSTEM_PROMPT_BASE = [
     "You are a helpful AI assistant running entirely in the user's browser via on-device inference — no data leaves the device.",
-    `You live on teozeng.dev, the personal site of ${profile.name} (Weicheng Zeng), a data scientist in the New York City area at 3Victors/ATPCO working on airline pricing, ML, agent systems, and forecasting.`,
     'Answer any question helpfully and concisely.',
 ].join('\n')
 
 const SYSTEM_PROMPT_TOOLS = [
     SYSTEM_PROMPT_BASE,
-    'You can call tools when they help: calculator (arithmetic), get_current_datetime (the local date/time), and get_profile_info (facts about Teo). Use get_profile_info for any question about Teo before answering. Only call a tool when it is actually needed, then give a short final answer.',
+    'You can call tools when they help: calculator (arithmetic) and get_current_datetime (the local date and time). Only call a tool when it is actually needed, then give a short final answer.',
 ].join('\n')
 
 // ---- Component ------------------------------------------------------------
@@ -591,7 +583,6 @@ export default function ChatPage() {
                         mode,
                         messages: promptMessages,
                         useTools,
-                        toolContext: useTools ? TOOL_CONTEXT : undefined,
                     })
                 })
             } catch (err) {
@@ -686,23 +677,22 @@ export default function ChatPage() {
     const sidebarContent = (
         <div className="flex h-full flex-col">
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">
-                <Link
-                    href="/"
-                    className="flex items-center gap-1.5 text-[13px] text-slate-500 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                >
-                    <svg
-                        viewBox="0 0 24 24"
-                        className="h-3.5 w-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    >
-                        <path d="M19 12H5M12 5l-7 7 7 7" />
-                    </svg>
-                    teozeng.dev
-                </Link>
+                <span className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-700 dark:text-slate-200">
+                    <span className="grid h-5 w-5 place-items-center rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900">
+                        <svg
+                            viewBox="0 0 24 24"
+                            className="h-3 w-3"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                    </span>
+                    Local Chat
+                </span>
                 <button
                     type="button"
                     onClick={newChat}
@@ -813,7 +803,7 @@ export default function ChatPage() {
                     <span className="text-[13px] font-medium text-slate-600 dark:text-slate-300">
                         Tools (agent)
                         <span className="ml-1 block text-[11px] font-normal text-slate-400 dark:text-slate-500">
-                            calculator · datetime · profile
+                            calculator · datetime
                         </span>
                     </span>
                     <button
@@ -948,29 +938,48 @@ export default function ChatPage() {
                 <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
                     {messages.length === 0 ? (
                         <div className="flex h-full flex-col items-center justify-center text-center">
-                            <div className="mb-4 rounded-2xl bg-slate-100 p-5 dark:bg-slate-800">
+                            <div className="mb-5 grid h-14 w-14 place-items-center rounded-2xl bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900">
                                 <svg
                                     viewBox="0 0 24 24"
-                                    className="mx-auto h-8 w-8 text-slate-400 dark:text-slate-500"
+                                    className="h-7 w-7"
                                     fill="none"
                                     stroke="currentColor"
-                                    strokeWidth="1.5"
+                                    strokeWidth="1.8"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                 >
                                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                                 </svg>
                             </div>
-                            <h2 className="text-[18px] font-semibold text-slate-700 dark:text-slate-200">
-                                {selectedModel.name}
+                            <h2 className="text-[22px] font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+                                How can I help?
                             </h2>
-                            <p className="mt-1 max-w-sm text-[14px] text-slate-400 dark:text-slate-500">
-                                Runs privately in your browser · no data leaves your device
+                            <p className="mt-1.5 max-w-sm text-[14px] text-slate-400 dark:text-slate-500">
+                                {selectedModel.name} runs privately in your browser
                                 {agenticActive && ' · tools enabled'}
                             </p>
+                            <div className="mt-5 flex flex-wrap justify-center gap-2">
+                                {(agenticActive
+                                    ? ["What's 17% of 240?", 'What time is it right now?', 'Explain WebGPU simply']
+                                    : [
+                                          'Explain WebGPU simply',
+                                          'Write a haiku about the ocean',
+                                          'Ideas for a weekend trip',
+                                      ]
+                                ).map(s => (
+                                    <button
+                                        key={s}
+                                        type="button"
+                                        onClick={() => send(s)}
+                                        className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[13px] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     ) : (
-                        <div className="mx-auto max-w-2xl space-y-4">
+                        <div className="mx-auto max-w-2xl space-y-6">
                             {messages.map((m, i) => {
                                 const isLast = i === messages.length - 1
                                 if (m.role === 'tool') return <ToolRow key={i} msg={m} />
@@ -979,15 +988,29 @@ export default function ChatPage() {
                                 if (m.role === 'user') {
                                     return (
                                         <div key={i} className="flex justify-end">
-                                            <div className="max-w-[80%] rounded-2xl bg-slate-900 px-4 py-2.5 text-[15px] leading-relaxed text-slate-50 dark:bg-slate-100 dark:text-slate-900">
+                                            <div className="max-w-[80%] rounded-3xl rounded-br-lg bg-slate-900 px-4 py-2.5 text-[15px] leading-relaxed text-slate-50 dark:bg-slate-100 dark:text-slate-900">
                                                 <span className="whitespace-pre-wrap break-words">{m.content}</span>
                                             </div>
                                         </div>
                                     )
                                 }
                                 return (
-                                    <div key={i} className="flex justify-start">
-                                        <div className="max-w-[85%] space-y-2">
+                                    <div key={i} className="flex gap-3">
+                                        <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-900">
+                                            <svg
+                                                viewBox="0 0 24 24"
+                                                className="h-4 w-4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                            >
+                                                <path d="M12 3a4 4 0 0 1 4 4 4 4 0 0 1 0 8 4 4 0 0 1-8 0 4 4 0 0 1 0-8 4 4 0 0 1 4-4Z" />
+                                                <path d="M9 11h6" />
+                                            </svg>
+                                        </span>
+                                        <div className="min-w-0 flex-1 space-y-2 pt-0.5">
                                             {m.reasoning && (
                                                 <div className="border-l-2 border-slate-200 pl-3 text-[13px] leading-relaxed text-slate-400 dark:border-slate-700 dark:text-slate-500">
                                                     <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide">
@@ -998,13 +1021,18 @@ export default function ChatPage() {
                                                     </span>
                                                 </div>
                                             )}
-                                            {(m.content || showDots) && (
-                                                <div className="rounded-2xl bg-slate-100 px-4 py-2.5 text-[15px] leading-relaxed text-slate-800 dark:bg-slate-800 dark:text-slate-100">
-                                                    <span className="whitespace-pre-wrap break-words">
-                                                        {m.content || '…'}
+                                            {(m.content || showDots) &&
+                                                (showDots ? (
+                                                    <span className="inline-flex gap-1 pt-1.5">
+                                                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.2s]" />
+                                                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.1s]" />
+                                                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
                                                     </span>
-                                                </div>
-                                            )}
+                                                ) : (
+                                                    <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-slate-800 dark:text-slate-100">
+                                                        {m.content}
+                                                    </div>
+                                                ))}
                                         </div>
                                     </div>
                                 )
@@ -1017,17 +1045,15 @@ export default function ChatPage() {
                 </div>
 
                 {/* Composer */}
-                <div className="shrink-0 border-t border-slate-100 px-4 py-4 dark:border-slate-800 sm:px-6">
+                <div className="shrink-0 px-4 pb-4 pt-2 sm:px-6">
                     <div className="mx-auto max-w-2xl">
-                        <div className="flex items-end gap-3 rounded-2xl bg-slate-100 px-4 py-3 ring-1 ring-transparent focus-within:ring-slate-300 dark:bg-slate-800 dark:focus-within:ring-slate-600">
+                        <div className="flex items-end gap-2 rounded-[28px] border border-slate-200 bg-white px-4 py-2.5 shadow-sm transition focus-within:border-slate-300 focus-within:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-slate-600">
                             <textarea
                                 ref={inputRef}
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                placeholder={
-                                    streaming ? 'Generating…' : 'Message · Enter to send, Shift+Enter for newline'
-                                }
+                                placeholder={streaming ? 'Generating…' : 'Message…'}
                                 disabled={streaming}
                                 rows={1}
                                 style={{ resize: 'none' }}
@@ -1038,7 +1064,7 @@ export default function ChatPage() {
                                     type="button"
                                     onClick={stopGeneration}
                                     aria-label="Stop generation"
-                                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-rose-500 text-white transition hover:bg-rose-600"
+                                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-rose-500 text-white transition hover:bg-rose-600"
                                 >
                                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
                                         <rect x="7" y="7" width="10" height="10" rx="1.5" />
@@ -1050,7 +1076,7 @@ export default function ChatPage() {
                                     disabled={!input.trim()}
                                     onClick={() => send(input)}
                                     aria-label="Send"
-                                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-900 text-slate-50 transition enabled:hover:opacity-90 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
+                                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-900 text-slate-50 transition enabled:hover:opacity-90 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
                                 >
                                     <svg
                                         viewBox="0 0 24 24"
