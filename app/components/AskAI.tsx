@@ -14,7 +14,9 @@ type RuntimeDevice = 'webgpu' | 'wasm' | 'instant'
 type RuntimeMode = {
     device: RuntimeDevice
     modelId: string
-    dtype: 'q4'
+    // q4f16 keeps f16 activations: smaller download and faster on the GPU, so it's
+    // the WebGPU pick. CPUs emulate f16, so the WASM path stays on plain q4.
+    dtype: 'q4' | 'q4f16'
     label: string
     maxNewTokens: number
 }
@@ -41,7 +43,7 @@ type ActiveGeneration = {
 const WEBGPU_MODE: RuntimeMode = {
     device: 'webgpu',
     modelId: 'LiquidAI/LFM2.5-350M-ONNX',
-    dtype: 'q4',
+    dtype: 'q4f16',
     label: 'WebGPU',
     maxNewTokens: 80,
 }
@@ -81,7 +83,14 @@ const MAX_MODEL_MESSAGE_CHARS = 360
 const COMPACT_MODEL_HISTORY_MESSAGES = 4
 const COMPACT_MODEL_MESSAGE_CHARS = 260
 const WEBGPU_PROBE_TIMEOUT_MS = 1200
+// Below this (when the device reports memory at all) we won't attempt the GPU
+// model and tier the device down to a lighter WASM mode.
 const WEBGPU_MIN_MEMORY_GB = 4
+// Floor for *preferring* WebGPU. We lean on WebGPU wherever an adapter exists;
+// only devices that explicitly report less than this are kept off the GPU path.
+// q4f16 weights are light (~120MB) and the worker still falls back to WASM if the
+// model fails to load, so the probe + this floor are enough of a guard.
+const WEBGPU_PREFERRED_MIN_MEMORY_GB = 2
 const WASM_MIN_MEMORY_GB = 1.5
 const MAX_ANSWER_WORDS = 55
 const EMPTY_MESSAGES: Msg[] = []
@@ -175,15 +184,15 @@ function deviceMemoryGB(): number | null {
     return typeof memory === 'number' && Number.isFinite(memory) && memory > 0 ? memory : null
 }
 
-// Whether to load the larger 350M model on WebGPU. Use WebGPU on any device that
-// can run it with enough memory — including phones. When deviceMemory is reported
-// (Chrome/Android/Edge), gate on the real value. When it's unknown (Safari/iOS,
-// Firefox), assume desktops are fine but stay conservative on mobile, where a
-// 350M-model OOM can kill the tab and the lighter WASM model is the safer default.
+// Prefer WebGPU wherever a device can plausibly run it — phones included. When
+// deviceMemory is reported (Chrome/Android/Edge), only refuse below the preferred
+// floor. When it's unknown (Safari/iOS, Firefox), trust the adapter probe and the
+// worker's WASM fallback rather than excluding mobile up front — recent iOS Safari
+// and Android Chrome ship WebGPU and run the q4f16 350M model fine.
 function hasMemoryForWebGPU(): boolean {
     const memory = deviceMemoryGB()
-    if (memory !== null) return memory >= WEBGPU_MIN_MEMORY_GB
-    return !likelyMobileBrowser()
+    if (memory !== null) return memory >= WEBGPU_PREFERRED_MIN_MEMORY_GB
+    return true
 }
 
 function memoryCappedWasmMode(): RuntimeMode {

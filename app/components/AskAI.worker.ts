@@ -2,10 +2,17 @@ type RuntimeDevice = 'webgpu' | 'wasm'
 type RuntimeMode = {
     device: RuntimeDevice
     modelId: string
-    dtype: 'q4'
+    // q4f16 (f16 activations) on WebGPU; plain q4 on the WASM/CPU path.
+    dtype: 'q4' | 'q4f16'
     label: string
     maxNewTokens: number
 }
+
+// Idle watchdog: if decoding stalls (no new token) for this long, interrupt and
+// report an error so the client degrades to the instant answer instead of
+// hanging on "Thinking…". A GPU/driver stall can wedge a turn with no recovery
+// path otherwise.
+const GENERATION_IDLE_TIMEOUT_MS = 15000
 
 type WorkerChatMessage = { role: 'system' | 'user' | 'assistant'; content: string }
 
@@ -271,22 +278,52 @@ workerSelf.addEventListener('message', event => {
             const stopper = new InterruptableStoppingCriteria()
             activeStopper = stopper
             activeId = request.id
+
+            // Reset the idle watchdog on every token; fire if decoding stalls.
+            let watchdog: ReturnType<typeof setTimeout> | null = null
+            let stalled = false
+            const armWatchdog = () => {
+                if (watchdog) clearTimeout(watchdog)
+                watchdog = setTimeout(() => {
+                    stalled = true
+                    stopper.interrupt()
+                }, GENERATION_IDLE_TIMEOUT_MS)
+            }
+            const disarmWatchdog = () => {
+                if (watchdog) clearTimeout(watchdog)
+                watchdog = null
+            }
+
             const streamer = new TextStreamer(generator.tokenizer, {
                 skip_prompt: true,
                 skip_special_tokens: true,
                 callback_function: (chunk: string) => {
+                    armWatchdog()
                     post({ type: 'chunk', id: request.id, chunk })
                 },
             })
 
-            await generator(request.messages, {
-                max_new_tokens: loadedMode.maxNewTokens,
-                do_sample: false,
-                return_full_text: false,
-                streamer,
-                stopping_criteria: stopper,
-            })
-            post({ type: 'done', id: request.id })
+            armWatchdog()
+            try {
+                await generator(request.messages, {
+                    max_new_tokens: loadedMode.maxNewTokens,
+                    do_sample: false,
+                    // Small models loop/repeat under greedy decoding; these curb it
+                    // at the source for cleaner, better-terminated answers.
+                    repetition_penalty: 1.15,
+                    // 4-grams, not 3: blocks degenerate loops while still letting
+                    // legitimately repeated phrases through (e.g. "Data Science"
+                    // appears in both of Teo's degrees).
+                    no_repeat_ngram_size: 4,
+                    return_full_text: false,
+                    streamer,
+                    stopping_criteria: stopper,
+                })
+            } finally {
+                disarmWatchdog()
+            }
+            if (stalled) post({ type: 'error', id: request.id, message: 'Generation timed out.' })
+            else post({ type: 'done', id: request.id })
         } catch (error) {
             post({ type: 'error', id: request.id, message: errorMessage(error) })
         } finally {
