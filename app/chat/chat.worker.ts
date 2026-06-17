@@ -75,6 +75,52 @@ function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error)
 }
 
+// --- HuggingFace fetch workaround --------------------------------------------
+// Transformers.js probes each model file with a `Range: bytes=0-0` metadata
+// request. On some networks the redirect to the Xet/CDN host rejects that
+// ranged request (surfacing as "Failed to fetch"); retry it as a plain HEAD.
+let transformersFetch: typeof fetch | null = null
+
+function requestUrl(input: RequestInfo | URL): string {
+    if (typeof input === 'string') return input
+    if (input instanceof URL) return input.href
+    return input.url
+}
+
+function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
+    return (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+}
+
+function requestHeaders(input: RequestInfo | URL, init?: RequestInit): Headers {
+    return new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+}
+
+function isHuggingFaceMetadataRangeRequest(input: RequestInfo | URL, init?: RequestInit): boolean {
+    if (requestMethod(input, init) !== 'GET') return false
+    const headers = requestHeaders(input, init)
+    return headers.get('Range') === 'bytes=0-0' && /^https:\/\/huggingface\.co\/.+\/resolve\//.test(requestUrl(input))
+}
+
+async function fetchWithMetadataFallback(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const fetcher = transformersFetch ?? fetch.bind(globalThis)
+    try {
+        return await fetcher(input, init)
+    } catch (error) {
+        if (!isHuggingFaceMetadataRangeRequest(input, init) || errorMessage(error).includes('AbortError')) {
+            throw error
+        }
+        const headers = requestHeaders(input, init)
+        headers.delete('Range')
+        return fetcher(requestUrl(input), {
+            ...init,
+            method: 'HEAD',
+            headers,
+            body: undefined,
+            cache: init?.cache ?? 'no-store',
+        })
+    }
+}
+
 function fileLabel(file: unknown): string {
     if (typeof file !== 'string' || !file) return 'files'
     return file.split('/').pop() || file
@@ -97,6 +143,8 @@ function progressText(mode: RuntimeMode, progress: any): string | null {
 }
 
 function configureEnv(env: any, mode: RuntimeMode) {
+    transformersFetch ??= env.fetch ?? fetch.bind(globalThis)
+    env.fetch = fetchWithMetadataFallback
     env.allowLocalModels = false
     env.useBrowserCache = true
     env.useWasmCache = true
@@ -177,7 +225,9 @@ const TOOLS: Record<string, ToolDef> = {
                 // eslint-disable-next-line no-new-func
                 const value = Function(`"use strict"; return (${raw});`)()
                 if (typeof value !== 'number' || !Number.isFinite(value)) return 'Error: result is not a finite number.'
-                return String(value)
+                // Trim binary-float noise (e.g. 40.800000000000004 -> 40.8) without
+                // losing genuine precision.
+                return String(Number.isInteger(value) ? value : Number(value.toPrecision(12)))
             } catch {
                 return 'Error: could not evaluate the expression.'
             }
