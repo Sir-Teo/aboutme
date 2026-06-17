@@ -1,8 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
-import { profile, bio, links } from '../data/profile'
 
 // ---- Types ----------------------------------------------------------------
 
@@ -276,7 +274,7 @@ function parseThinking(raw: string): { reasoning: string; answer: string } {
 
 // ---- Persistence ----------------------------------------------------------
 
-const STORAGE_KEY = 'teo.chat.v2'
+const STORAGE_KEY = 'localchat.history.v1'
 
 function loadHistory(): { convs: Conversation[]; activeId: string } | null {
     try {
@@ -317,20 +315,14 @@ function loadHistory(): { convs: Conversation[]; activeId: string } | null {
 
 // ---- Prompt context -------------------------------------------------------
 
-// Fed to the get_profile_info tool so the agent can ground answers about Teo.
-const TOOL_CONTEXT = [bio, '', 'Public links:', ...links.filter(l => l.href).map(l => `- ${l.label}: ${l.href}`)].join(
-    '\n'
-)
-
 const SYSTEM_PROMPT_BASE = [
     "You are a helpful AI assistant running entirely in the user's browser via on-device inference — no data leaves the device.",
-    `You live on teozeng.dev, the personal site of ${profile.name} (Weicheng Zeng), a data scientist in the New York City area at 3Victors/ATPCO working on airline pricing, ML, agent systems, and forecasting.`,
     'Answer any question helpfully and concisely.',
 ].join('\n')
 
 const SYSTEM_PROMPT_TOOLS = [
     SYSTEM_PROMPT_BASE,
-    'You can call tools when they help: calculator (arithmetic), get_current_datetime (the local date/time), and get_profile_info (facts about Teo). Use get_profile_info for any question about Teo before answering. Only call a tool when it is actually needed, then give a short final answer.',
+    'You can call tools when they help: calculator (arithmetic) and get_current_datetime (the local date and time). Only call a tool when it is actually needed, then give a short final answer.',
 ].join('\n')
 
 // ---- Component ------------------------------------------------------------
@@ -351,6 +343,7 @@ export default function ChatPage() {
     const [streamingId, setStreamingId] = useState<string | null>(null)
     const [input, setInput] = useState('')
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [modelMenuOpen, setModelMenuOpen] = useState(false)
 
     const workerRef = useRef<Worker | null>(null)
     const generationRef = useRef<ActiveGeneration | null>(null)
@@ -591,7 +584,6 @@ export default function ChatPage() {
                         mode,
                         messages: promptMessages,
                         useTools,
-                        toolContext: useTools ? TOOL_CONTEXT : undefined,
                     })
                 })
             } catch (err) {
@@ -684,169 +676,32 @@ export default function ChatPage() {
             : 'bg-slate-300 dark:bg-slate-600'
 
     const sidebarContent = (
-        <div className="flex h-full flex-col">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">
-                <Link
-                    href="/"
-                    className="flex items-center gap-1.5 text-[13px] text-slate-500 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                >
-                    <svg
-                        viewBox="0 0 24 24"
-                        className="h-3.5 w-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    >
-                        <path d="M19 12H5M12 5l-7 7 7 7" />
-                    </svg>
-                    teozeng.dev
-                </Link>
+        <div className="flex h-full flex-col bg-slate-50 dark:bg-slate-900">
+            <div className="px-2 pt-3">
                 <button
                     type="button"
                     onClick={newChat}
-                    title="New chat"
-                    className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[13px] text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                    className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[14px] font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                     <svg
                         viewBox="0 0 24 24"
-                        className="h-3.5 w-3.5"
+                        className="h-4 w-4"
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                     >
-                        <path d="M12 5v14M5 12h14" />
+                        <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
                     </svg>
-                    New
+                    New chat
                 </button>
             </div>
 
-            {/* Model picker */}
-            <div className="border-b border-slate-100 px-3 py-3 dark:border-slate-800">
-                <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                    Model
-                </p>
-                <div className="max-h-64 space-y-3 overflow-y-auto">
-                    {families.map(({ family, models }) => (
-                        <div key={family}>
-                            <p className="mb-1 px-1 text-[11px] font-medium text-slate-400 dark:text-slate-500">
-                                {family}
-                            </p>
-                            <div className="space-y-0.5">
-                                {models.map(m => {
-                                    const unavailable = m.device === 'webgpu' && gpuAvailable === false
-                                    const isActive = modelId === m.id
-                                    return (
-                                        <button
-                                            key={m.id}
-                                            type="button"
-                                            disabled={unavailable || streaming}
-                                            onClick={() => switchModel(m.id)}
-                                            title={unavailable ? 'Requires WebGPU' : m.modelId}
-                                            className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition ${
-                                                isActive
-                                                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                                                    : unavailable
-                                                    ? 'cursor-not-allowed opacity-40'
-                                                    : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
-                                            }`}
-                                        >
-                                            <span className="min-w-0 flex-1">
-                                                <span className="flex items-center gap-1.5">
-                                                    <span className="truncate text-[13px] font-medium">{m.name}</span>
-                                                    {m.agentic && (
-                                                        <span
-                                                            title="Supports tools"
-                                                            className={`text-[10px] ${
-                                                                isActive ? 'text-emerald-300' : 'text-emerald-500'
-                                                            }`}
-                                                        >
-                                                            ⚒
-                                                        </span>
-                                                    )}
-                                                </span>
-                                                {m.note && (
-                                                    <span
-                                                        className={`block truncate text-[11px] ${
-                                                            isActive
-                                                                ? 'text-slate-300 dark:text-slate-500'
-                                                                : 'text-slate-400 dark:text-slate-500'
-                                                        }`}
-                                                    >
-                                                        {m.note}
-                                                    </span>
-                                                )}
-                                            </span>
-                                            <span
-                                                className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                                                    m.device === 'webgpu'
-                                                        ? isActive
-                                                            ? 'bg-blue-500 text-white'
-                                                            : 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
-                                                        : isActive
-                                                        ? 'bg-amber-500 text-white'
-                                                        : 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400'
-                                                }`}
-                                            >
-                                                {m.device === 'webgpu' ? 'GPU' : 'WASM'}
-                                            </span>
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                {gpuAvailable === false && (
-                    <p className="mt-2 px-1 text-[11px] text-slate-400 dark:text-slate-500">
-                        WebGPU unavailable — use a WASM model or try Chrome/Edge.
-                    </p>
-                )}
-            </div>
-
-            {/* Tools toggle */}
-            <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
-                <label className={`flex items-center justify-between ${selectedModel.agentic ? '' : 'opacity-40'}`}>
-                    <span className="text-[13px] font-medium text-slate-600 dark:text-slate-300">
-                        Tools (agent)
-                        <span className="ml-1 block text-[11px] font-normal text-slate-400 dark:text-slate-500">
-                            calculator · datetime · profile
-                        </span>
-                    </span>
-                    <button
-                        type="button"
-                        role="switch"
-                        aria-checked={agenticActive}
-                        disabled={!selectedModel.agentic}
-                        onClick={() => setToolsEnabled(v => !v)}
-                        className={`relative h-5 w-9 shrink-0 rounded-full transition ${
-                            agenticActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
-                        } ${selectedModel.agentic ? '' : 'cursor-not-allowed'}`}
-                    >
-                        <span
-                            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${
-                                agenticActive ? 'left-[18px]' : 'left-0.5'
-                            }`}
-                        />
-                    </button>
-                </label>
-                {!selectedModel.agentic && (
-                    <p className="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">
-                        This model doesn&apos;t support tool calling.
-                    </p>
-                )}
-            </div>
-
             {/* History */}
-            <div className="flex-1 overflow-y-auto px-4 py-3">
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                    History
-                </p>
+            <div className="flex-1 overflow-y-auto px-2 py-2">
                 {sorted.length === 0 ? (
-                    <p className="text-[13px] text-slate-400 dark:text-slate-500">No conversations yet.</p>
+                    <p className="px-2 py-1 text-[13px] text-slate-400 dark:text-slate-500">No conversations yet.</p>
                 ) : (
                     <ul className="space-y-0.5">
                         {sorted.map(c => (
@@ -858,136 +713,327 @@ export default function ChatPage() {
                                         setSidebarOpen(false)
                                         stickRef.current = true
                                     }}
-                                    className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition ${
+                                    className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition ${
                                         c.id === activeId
-                                            ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                                            : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                                            ? 'bg-slate-200/70 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                            : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-300 dark:hover:bg-slate-800/60'
                                     }`}
                                 >
-                                    {streamingId === c.id ? (
-                                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-400" />
-                                    ) : (
-                                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300 dark:bg-slate-600" />
+                                    {streamingId === c.id && (
+                                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />
                                     )}
-                                    <span className="block truncate text-[13px]">{convTitle(c)}</span>
+                                    <span className="block truncate text-[14px]">{convTitle(c)}</span>
                                 </button>
                             </li>
                         ))}
                     </ul>
                 )}
             </div>
+        </div>
+    )
 
-            <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-800">
-                <p className="text-[11px] text-slate-400 dark:text-slate-500">Private · on-device · no data sent</p>
+    const suggestions = agenticActive
+        ? ["What's 17% of 240?", 'What time is it right now?', 'Explain WebGPU simply']
+        : ['Explain WebGPU simply', 'Write a haiku about the ocean', 'Ideas for a weekend trip']
+
+    // Shared composer — rendered centered on an empty chat (ChatGPT style) and
+    // pinned to the bottom once a conversation has started.
+    const composer = (
+        <div className="mx-auto w-full max-w-3xl">
+            <div className="flex items-end gap-2 rounded-[26px] border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm transition focus-within:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-slate-600">
+                <textarea
+                    ref={inputRef}
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={streaming ? 'Generating…' : 'Ask anything'}
+                    disabled={streaming}
+                    rows={1}
+                    style={{ resize: 'none' }}
+                    className="max-h-44 flex-1 bg-transparent px-2 py-2 text-[15px] text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60 dark:text-slate-100"
+                />
+                {streaming ? (
+                    <button
+                        type="button"
+                        onClick={stopGeneration}
+                        aria-label="Stop generation"
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-900 text-white transition hover:opacity-90 dark:bg-white dark:text-slate-900"
+                    >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor">
+                            <rect x="7" y="7" width="10" height="10" rx="2" />
+                        </svg>
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        disabled={!input.trim()}
+                        onClick={() => send(input)}
+                        aria-label="Send"
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-900 text-white transition enabled:hover:opacity-90 disabled:opacity-30 dark:bg-white dark:text-slate-900"
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <path d="M12 19V5M5 12l7-7 7 7" />
+                        </svg>
+                    </button>
+                )}
             </div>
+            <p className="mt-2 text-center text-[11px] text-slate-300 dark:text-slate-600">
+                On-device · no data leaves your device
+            </p>
         </div>
     )
 
     return (
-        <div className="flex h-screen flex-col overflow-hidden bg-white dark:bg-slate-950 lg:flex-row">
-            {/* Mobile top bar */}
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800 lg:hidden">
-                <button
-                    type="button"
-                    onClick={() => setSidebarOpen(true)}
-                    className="flex items-center gap-2 text-[14px] font-medium text-slate-700 dark:text-slate-200"
-                >
-                    <svg
-                        viewBox="0 0 24 24"
-                        className="h-5 w-5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    >
-                        <line x1="3" y1="6" x2="21" y2="6" />
-                        <line x1="3" y1="12" x2="21" y2="12" />
-                        <line x1="3" y1="18" x2="21" y2="18" />
-                    </svg>
-                    Chat
-                </button>
-                <div className="flex items-center gap-2 text-[13px] text-slate-500 dark:text-slate-400">
-                    <span className={`h-2 w-2 rounded-full ${statusColor}`} />
-                    {selectedModel.name}
-                </div>
-            </div>
+        <div className="flex h-screen overflow-hidden bg-white dark:bg-slate-950">
+            {/* Sidebar — desktop */}
+            <aside className="hidden w-64 shrink-0 lg:block">{sidebarContent}</aside>
 
-            <aside className="hidden w-72 shrink-0 flex-col border-r border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900 lg:flex">
-                {sidebarContent}
-            </aside>
-
+            {/* Sidebar — mobile drawer */}
             {sidebarOpen && (
                 <div className="fixed inset-0 z-50 lg:hidden">
                     <div className="absolute inset-0 bg-black/30" onClick={() => setSidebarOpen(false)} />
-                    <aside className="absolute left-0 top-0 h-full w-72 overflow-y-auto bg-white shadow-xl dark:bg-slate-900">
+                    <aside className="absolute left-0 top-0 h-full w-72 overflow-y-auto shadow-xl">
                         {sidebarContent}
                     </aside>
                 </div>
             )}
 
-            {/* Chat area */}
+            {/* Main */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <div className="hidden shrink-0 items-center justify-between border-b border-slate-100 px-6 py-3 dark:border-slate-800 lg:flex">
-                    <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 rounded-full ${statusColor}`} />
-                        <span className="text-[14px] font-medium text-slate-700 dark:text-slate-200">
-                            {selectedModel.name}
-                        </span>
-                        <span className="text-[13px] text-slate-400 dark:text-slate-500">
-                            · {agenticActive ? 'agent · ' : ''}private, on-device
-                        </span>
-                    </div>
-                    {progress && (
-                        <span className="max-w-xs truncate text-[12px] text-slate-400 dark:text-slate-500">
-                            {progress}
-                        </span>
-                    )}
-                </div>
+                {/* Top bar */}
+                <div className="flex shrink-0 items-center justify-between gap-2 px-2.5 py-2 sm:px-4">
+                    <div className="flex items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => setSidebarOpen(true)}
+                            aria-label="Open sidebar"
+                            className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 lg:hidden"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                className="h-5 w-5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                <line x1="3" y1="6" x2="21" y2="6" />
+                                <line x1="3" y1="12" x2="21" y2="12" />
+                                <line x1="3" y1="18" x2="21" y2="18" />
+                            </svg>
+                        </button>
 
-                <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
-                    {messages.length === 0 ? (
-                        <div className="flex h-full flex-col items-center justify-center text-center">
-                            <div className="mb-4 rounded-2xl bg-slate-100 p-5 dark:bg-slate-800">
+                        {/* Model selector dropdown */}
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setModelMenuOpen(o => !o)}
+                                aria-haspopup="listbox"
+                                aria-expanded={modelMenuOpen}
+                                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[16px] font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                            >
+                                <span className={`h-1.5 w-1.5 rounded-full ${statusColor}`} />
+                                {selectedModel.name}
                                 <svg
                                     viewBox="0 0 24 24"
-                                    className="mx-auto h-8 w-8 text-slate-400 dark:text-slate-500"
+                                    className={`h-4 w-4 text-slate-400 transition ${modelMenuOpen ? 'rotate-180' : ''}`}
                                     fill="none"
                                     stroke="currentColor"
-                                    strokeWidth="1.5"
+                                    strokeWidth="2"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                 >
-                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                    <path d="M6 9l6 6 6-6" />
                                 </svg>
-                            </div>
-                            <h2 className="text-[18px] font-semibold text-slate-700 dark:text-slate-200">
-                                {selectedModel.name}
-                            </h2>
-                            <p className="mt-1 max-w-sm text-[14px] text-slate-400 dark:text-slate-500">
-                                Runs privately in your browser · no data leaves your device
-                                {agenticActive && ' · tools enabled'}
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="mx-auto max-w-2xl space-y-4">
-                            {messages.map((m, i) => {
-                                const isLast = i === messages.length - 1
-                                if (m.role === 'tool') return <ToolRow key={i} msg={m} />
-                                const showDots =
-                                    m.role === 'assistant' && isLast && streaming && !m.content && !m.reasoning
-                                if (m.role === 'user') {
-                                    return (
-                                        <div key={i} className="flex justify-end">
-                                            <div className="max-w-[80%] rounded-2xl bg-slate-900 px-4 py-2.5 text-[15px] leading-relaxed text-slate-50 dark:bg-slate-100 dark:text-slate-900">
-                                                <span className="whitespace-pre-wrap break-words">{m.content}</span>
+                            </button>
+                            {modelMenuOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-30" onClick={() => setModelMenuOpen(false)} />
+                                    <div className="absolute left-0 top-full z-40 mt-1 max-h-[70vh] w-72 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                                        {families.map(({ family, models }) => (
+                                            <div key={family} className="py-0.5">
+                                                <p className="px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                                                    {family}
+                                                </p>
+                                                {models.map(m => {
+                                                    const unavailable = m.device === 'webgpu' && gpuAvailable === false
+                                                    const isActive = modelId === m.id
+                                                    return (
+                                                        <button
+                                                            key={m.id}
+                                                            type="button"
+                                                            disabled={unavailable || streaming}
+                                                            onClick={() => {
+                                                                switchModel(m.id)
+                                                                setModelMenuOpen(false)
+                                                            }}
+                                                            title={unavailable ? 'Requires WebGPU' : m.modelId}
+                                                            className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition ${
+                                                                unavailable
+                                                                    ? 'cursor-not-allowed opacity-40'
+                                                                    : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                            }`}
+                                                        >
+                                                            <span className="min-w-0">
+                                                                <span className="flex items-center gap-1.5">
+                                                                    <span className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">
+                                                                        {m.name}
+                                                                    </span>
+                                                                    {m.agentic && (
+                                                                        <span
+                                                                            title="Supports tools"
+                                                                            className="text-[10px] text-emerald-500"
+                                                                        >
+                                                                            ⚒
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                                {m.note && (
+                                                                    <span className="block truncate text-[11px] text-slate-400 dark:text-slate-500">
+                                                                        {m.note}
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                            <span className="flex shrink-0 items-center gap-1.5">
+                                                                <span
+                                                                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                                                        m.device === 'webgpu'
+                                                                            ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
+                                                                            : 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400'
+                                                                    }`}
+                                                                >
+                                                                    {m.device === 'webgpu' ? 'GPU' : 'WASM'}
+                                                                </span>
+                                                                {isActive && (
+                                                                    <svg
+                                                                        viewBox="0 0 24 24"
+                                                                        className="h-4 w-4 text-slate-700 dark:text-slate-200"
+                                                                        fill="none"
+                                                                        stroke="currentColor"
+                                                                        strokeWidth="2.5"
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                    >
+                                                                        <path d="M20 6 9 17l-5-5" />
+                                                                    </svg>
+                                                                )}
+                                                            </span>
+                                                        </button>
+                                                    )
+                                                })}
                                             </div>
-                                        </div>
-                                    )
-                                }
-                                return (
-                                    <div key={i} className="flex justify-start">
-                                        <div className="max-w-[85%] space-y-2">
+                                        ))}
+                                        {gpuAvailable === false && (
+                                            <p className="px-2.5 py-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+                                                WebGPU unavailable — use a WASM model or try Chrome/Edge.
+                                            </p>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Tools pill */}
+                        {selectedModel.agentic && (
+                            <button
+                                type="button"
+                                onClick={() => setToolsEnabled(v => !v)}
+                                aria-pressed={agenticActive}
+                                title="Tools: calculator · datetime"
+                                className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-medium transition ${
+                                    agenticActive
+                                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                                        : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                                }`}
+                            >
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    className="h-3.5 w-3.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                >
+                                    <path d="M14.7 6.3a4 4 0 0 0-5.6 5.6l-6 6a2 2 0 1 0 2.8 2.8l6-6a4 4 0 0 0 5.6-5.6l-2.1 2.1-2.2-2.2 2.1-2.1z" />
+                                </svg>
+                                Tools
+                            </button>
+                        )}
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={newChat}
+                        aria-label="New chat"
+                        className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 lg:hidden"
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            className="h-5 w-5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                    </button>
+                </div>
+
+                {messages.length === 0 ? (
+                    /* Empty state: centered greeting + composer (ChatGPT style) */
+                    <div className="flex flex-1 flex-col items-center justify-center px-4 pb-16">
+                        <h2 className="mb-7 text-center text-[28px] font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+                            What can I help with?
+                        </h2>
+                        {composer}
+                        <div className="mt-4 flex flex-wrap justify-center gap-2">
+                            {suggestions.map(s => (
+                                <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => send(s)}
+                                    className="rounded-full border border-slate-200 px-3.5 py-1.5 text-[13px] text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                >
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                        {status === 'loading' && progress && (
+                            <p className="mt-4 text-[13px] text-slate-400 dark:text-slate-500">{progress}</p>
+                        )}
+                    </div>
+                ) : (
+                    <>
+                        <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-4 sm:px-6">
+                            <div className="mx-auto max-w-3xl space-y-5 py-6">
+                                {messages.map((m, i) => {
+                                    const isLast = i === messages.length - 1
+                                    if (m.role === 'tool') return <ToolRow key={i} msg={m} />
+                                    const showDots =
+                                        m.role === 'assistant' && isLast && streaming && !m.content && !m.reasoning
+                                    if (m.role === 'user') {
+                                        return (
+                                            <div key={i} className="flex justify-end">
+                                                <div className="max-w-[75%] whitespace-pre-wrap break-words rounded-3xl bg-slate-100 px-4 py-2.5 text-[15px] leading-relaxed text-slate-800 dark:bg-slate-800 dark:text-slate-100">
+                                                    {m.content}
+                                                </div>
+                                            </div>
+                                        )
+                                    }
+                                    return (
+                                        <div key={i} className="space-y-2">
                                             {m.reasoning && (
                                                 <div className="border-l-2 border-slate-200 pl-3 text-[13px] leading-relaxed text-slate-400 dark:border-slate-700 dark:text-slate-500">
                                                     <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide">
@@ -998,79 +1044,32 @@ export default function ChatPage() {
                                                     </span>
                                                 </div>
                                             )}
-                                            {(m.content || showDots) && (
-                                                <div className="rounded-2xl bg-slate-100 px-4 py-2.5 text-[15px] leading-relaxed text-slate-800 dark:bg-slate-800 dark:text-slate-100">
-                                                    <span className="whitespace-pre-wrap break-words">
-                                                        {m.content || '…'}
+                                            {(m.content || showDots) &&
+                                                (showDots ? (
+                                                    <span className="inline-flex gap-1 py-1">
+                                                        <span className="h-2 w-2 animate-bounce rounded-full bg-slate-300 [animation-delay:-0.2s] dark:bg-slate-600" />
+                                                        <span className="h-2 w-2 animate-bounce rounded-full bg-slate-300 [animation-delay:-0.1s] dark:bg-slate-600" />
+                                                        <span className="h-2 w-2 animate-bounce rounded-full bg-slate-300 dark:bg-slate-600" />
                                                     </span>
-                                                </div>
-                                            )}
+                                                ) : (
+                                                    <div className="whitespace-pre-wrap break-words text-[15px] leading-7 text-slate-800 dark:text-slate-100">
+                                                        {m.content}
+                                                    </div>
+                                                ))}
                                         </div>
-                                    </div>
-                                )
-                            })}
-                            {status === 'loading' && progress && (
-                                <p className="text-center text-[13px] text-slate-400 dark:text-slate-500">{progress}</p>
-                            )}
+                                    )
+                                })}
+                                {status === 'loading' && progress && (
+                                    <p className="text-center text-[13px] text-slate-400 dark:text-slate-500">
+                                        {progress}
+                                    </p>
+                                )}
+                            </div>
                         </div>
-                    )}
-                </div>
 
-                {/* Composer */}
-                <div className="shrink-0 border-t border-slate-100 px-4 py-4 dark:border-slate-800 sm:px-6">
-                    <div className="mx-auto max-w-2xl">
-                        <div className="flex items-end gap-3 rounded-2xl bg-slate-100 px-4 py-3 ring-1 ring-transparent focus-within:ring-slate-300 dark:bg-slate-800 dark:focus-within:ring-slate-600">
-                            <textarea
-                                ref={inputRef}
-                                value={input}
-                                onChange={e => setInput(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                placeholder={
-                                    streaming ? 'Generating…' : 'Message · Enter to send, Shift+Enter for newline'
-                                }
-                                disabled={streaming}
-                                rows={1}
-                                style={{ resize: 'none' }}
-                                className="max-h-40 flex-1 bg-transparent text-[15px] text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60 dark:text-slate-100"
-                            />
-                            {streaming ? (
-                                <button
-                                    type="button"
-                                    onClick={stopGeneration}
-                                    aria-label="Stop generation"
-                                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-rose-500 text-white transition hover:bg-rose-600"
-                                >
-                                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
-                                        <rect x="7" y="7" width="10" height="10" rx="1.5" />
-                                    </svg>
-                                </button>
-                            ) : (
-                                <button
-                                    type="button"
-                                    disabled={!input.trim()}
-                                    onClick={() => send(input)}
-                                    aria-label="Send"
-                                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-900 text-slate-50 transition enabled:hover:opacity-90 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
-                                >
-                                    <svg
-                                        viewBox="0 0 24 24"
-                                        className="h-4 w-4"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M5 12h14M13 6l6 6-6 6" />
-                                    </svg>
-                                </button>
-                            )}
-                        </div>
-                        <p className="mt-2 text-center text-[11px] text-slate-300 dark:text-slate-600">
-                            Runs privately in your browser · no data leaves your device
-                        </p>
-                    </div>
-                </div>
+                        <div className="shrink-0 px-4 pb-3 pt-1 sm:px-6">{composer}</div>
+                    </>
+                )}
             </div>
         </div>
     )
