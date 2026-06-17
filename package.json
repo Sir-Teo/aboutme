@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "next lint --dir app",
     "eslint": "./node_modules/.bin/eslint \"app/**/*.{js,jsx,ts,tsx}\" --ignore-pattern \"app/lib/\" --ignore-pattern \"app/shared/\"",
@@ -29,29 +29,21 @@
     ]
   },
   "dependencies": {
-    "@headlessui/react": "^1.7.16",
     "@huggingface/transformers": "^4.2.0",
-    "@reduxjs/toolkit": "^1.9.5",
     "@types/node": "20.4.9",
-    "@types/react": "18.2.19",
-    "@types/react-dom": "^18.2.7",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.14",
-    "dayjs": "^1.11.9",
-    "dotenv": "^16.3.1",
     "eslint": "8.45.0",
-    "eslint-config-next": "^13.4.12",
+    "eslint-config-next": "15.5.19",
     "lodash": "^4.17.21",
-    "next": "13.4.12",
-    "postcss": "8.4.27",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "next": "16.2.9",
+    "postcss": "^8.5.15",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "react-markdown": "^9.0.3",
-    "react-redux": "^8.1.1",
-    "redux-devtools-extension": "^2.13.9",
-    "redux-thunk": "^2.4.2",
     "tailwindcss": "3.3.3",
-    "typescript": "5.1.6",
-    "universal-cookie": "^4.0.4"
+    "typescript": "5.1.6"
   },
   "devDependencies": {
     "@types/lodash": "^4.14.192",
@@ -67,7 +59,11 @@
     "eslint-plugin-react": "^7.32.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "lint-staged": "^13.2.2",
-    "pre-commit": "^1.2.2",
+    "pre-commit": "^2.0.0",
     "prettier": "^2.8.8"
+  },
+  "overrides": {
+    "glob": "^11.1.0",
+    "postcss": "^8.5.15"
   }
 }
