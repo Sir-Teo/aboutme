@@ -250,6 +250,231 @@ const TOOLS: Record<string, ToolDef> = {
             })
         },
     },
+    format_json: {
+        schema: {
+            type: 'function',
+            function: {
+                name: 'format_json',
+                description:
+                    'Validate and pretty-print a JSON string. Returns the formatted JSON or a clear error with position info.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        json: { type: 'string', description: 'The JSON string to validate and format.' },
+                    },
+                    required: ['json'],
+                },
+            },
+        },
+        run: args => {
+            const input = String(args?.json ?? '').trim()
+            if (!input) return 'Error: no JSON provided.'
+            try {
+                return JSON.stringify(JSON.parse(input), null, 2)
+            } catch (e) {
+                return `Invalid JSON: ${e instanceof Error ? e.message : String(e)}`
+            }
+        },
+    },
+    convert_units: {
+        schema: {
+            type: 'function',
+            function: {
+                name: 'convert_units',
+                description: 'Convert a value between units of measurement.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        value: { type: 'number', description: 'The numeric value to convert.' },
+                        from: {
+                            type: 'string',
+                            description:
+                                'Source unit. Supported: km, miles, m, ft, cm, in, kg, lbs, g, oz, celsius, fahrenheit, kelvin, l, ml, gal, fl_oz, m2, ft2, km2, miles2, ms, s, min, hour, day.',
+                        },
+                        to: { type: 'string', description: 'Target unit (same set as from).' },
+                    },
+                    required: ['value', 'from', 'to'],
+                },
+            },
+        },
+        run: args => {
+            const value = Number(args?.value)
+            const from = String(args?.from ?? '')
+                .toLowerCase()
+                .trim()
+            const to = String(args?.to ?? '')
+                .toLowerCase()
+                .trim()
+            if (!Number.isFinite(value)) return 'Error: value must be a finite number.'
+            // All conversions go through SI base units.
+            const TO_SI: Record<string, [number, string]> = {
+                // length → metres
+                m: [1, 'length'],
+                km: [1000, 'length'],
+                cm: [0.01, 'length'],
+                mm: [0.001, 'length'],
+                miles: [1609.344, 'length'],
+                mi: [1609.344, 'length'],
+                ft: [0.3048, 'length'],
+                feet: [0.3048, 'length'],
+                in: [0.0254, 'length'],
+                inch: [0.0254, 'length'],
+                inches: [0.0254, 'length'],
+                yd: [0.9144, 'length'],
+                yards: [0.9144, 'length'],
+                // mass → kg
+                kg: [1, 'mass'],
+                g: [0.001, 'mass'],
+                mg: [1e-6, 'mass'],
+                lbs: [0.453592, 'mass'],
+                lb: [0.453592, 'mass'],
+                oz: [0.0283495, 'mass'],
+                // volume → litres
+                l: [1, 'volume'],
+                ml: [0.001, 'volume'],
+                gal: [3.78541, 'volume'],
+                fl_oz: [0.0295735, 'volume'],
+                // area → m²
+                m2: [1, 'area'],
+                ft2: [0.092903, 'area'],
+                km2: [1e6, 'area'],
+                miles2: [2589988, 'area'],
+                ha: [10000, 'area'],
+                // time → seconds
+                ms: [0.001, 'time'],
+                s: [1, 'time'],
+                sec: [1, 'time'],
+                min: [60, 'time'],
+                hour: [3600, 'time'],
+                hr: [3600, 'time'],
+                day: [86400, 'time'],
+            }
+            // Temperature needs special handling (non-multiplicative).
+            const temps = new Set(['celsius', 'fahrenheit', 'kelvin', 'c', 'f', 'k'])
+            const normTemp = (u: string) =>
+                u === 'c' ? 'celsius' : u === 'f' ? 'fahrenheit' : u === 'k' ? 'kelvin' : u
+            if (temps.has(from) || temps.has(to)) {
+                const nf = normTemp(from)
+                const nt = normTemp(to)
+                let celsius: number
+                if (nf === 'celsius') celsius = value
+                else if (nf === 'fahrenheit') celsius = (value - 32) * (5 / 9)
+                else if (nf === 'kelvin') celsius = value - 273.15
+                else return `Error: unknown temperature unit "${from}".`
+                let result: number
+                if (nt === 'celsius') result = celsius
+                else if (nt === 'fahrenheit') result = celsius * (9 / 5) + 32
+                else if (nt === 'kelvin') result = celsius + 273.15
+                else return `Error: unknown temperature unit "${to}".`
+                return `${Number(result.toPrecision(8))} ${to}`
+            }
+            const fromEntry = TO_SI[from]
+            const toEntry = TO_SI[to]
+            if (!fromEntry) return `Error: unknown unit "${from}".`
+            if (!toEntry) return `Error: unknown unit "${to}".`
+            if (fromEntry[1] !== toEntry[1]) return `Error: cannot convert ${fromEntry[1]} to ${toEntry[1]}.`
+            const si = value * fromEntry[0]
+            const result = si / toEntry[0]
+            return `${Number(result.toPrecision(8))} ${to}`
+        },
+    },
+    regex_test: {
+        schema: {
+            type: 'function',
+            function: {
+                name: 'regex_test',
+                description: 'Test a regular expression against a string and return all matches with capture groups.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        pattern: { type: 'string', description: 'The regex pattern (without delimiters).' },
+                        text: { type: 'string', description: 'The text to test the pattern against.' },
+                        flags: {
+                            type: 'string',
+                            description: 'Optional flags: g (global), i (ignore case), m (multiline). Default: "g".',
+                        },
+                    },
+                    required: ['pattern', 'text'],
+                },
+            },
+        },
+        run: args => {
+            const pattern = String(args?.pattern ?? '')
+            const text = String(args?.text ?? '')
+            const flags = String(args?.flags ?? 'g').replace(/[^gimsuy]/g, '')
+            if (!pattern) return 'Error: no pattern provided.'
+            let re: RegExp
+            try {
+                re = new RegExp(pattern, flags.includes('g') ? flags : `${flags}g`)
+            } catch (e) {
+                return `Invalid regex: ${e instanceof Error ? e.message : String(e)}`
+            }
+            const matches = Array.from(text.matchAll(re))
+            if (!matches.length) return 'No matches found.'
+            const result = matches.slice(0, 50).map(m => ({
+                match: m[0],
+                index: m.index,
+                groups: m.slice(1).length ? m.slice(1) : undefined,
+                namedGroups: m.groups ?? undefined,
+            }))
+            return JSON.stringify({ matchCount: matches.length, matches: result }, null, 2)
+        },
+    },
+    encode_decode: {
+        schema: {
+            type: 'function',
+            function: {
+                name: 'encode_decode',
+                description: 'Encode or decode a string. Supports base64, URL encoding, and HTML entity escaping.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        operation: {
+                            type: 'string',
+                            description:
+                                'One of: base64_encode, base64_decode, url_encode, url_decode, html_escape, html_unescape.',
+                        },
+                        input: { type: 'string', description: 'The string to transform.' },
+                    },
+                    required: ['operation', 'input'],
+                },
+            },
+        },
+        run: args => {
+            const op = String(args?.operation ?? '').trim()
+            const input = String(args?.input ?? '')
+            try {
+                switch (op) {
+                    case 'base64_encode':
+                        return btoa(unescape(encodeURIComponent(input)))
+                    case 'base64_decode':
+                        return decodeURIComponent(escape(atob(input)))
+                    case 'url_encode':
+                        return encodeURIComponent(input)
+                    case 'url_decode':
+                        return decodeURIComponent(input)
+                    case 'html_escape':
+                        return input
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#39;')
+                    case 'html_unescape':
+                        return input
+                            .replace(/&amp;/g, '&')
+                            .replace(/&lt;/g, '<')
+                            .replace(/&gt;/g, '>')
+                            .replace(/&quot;/g, '"')
+                            .replace(/&#39;/g, "'")
+                    default:
+                        return `Error: unknown operation "${op}". Use base64_encode, base64_decode, url_encode, url_decode, html_escape, or html_unescape.`
+                }
+            } catch (e) {
+                return `Error: ${e instanceof Error ? e.message : String(e)}`
+            }
+        },
+    },
 }
 
 function toolSchemas(): any[] {

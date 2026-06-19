@@ -322,7 +322,14 @@ const SYSTEM_PROMPT_BASE = [
 
 const SYSTEM_PROMPT_TOOLS = [
     SYSTEM_PROMPT_BASE,
-    'You can call tools when they help: calculator (arithmetic) and get_current_datetime (the local date and time). Only call a tool when it is actually needed, then give a short final answer.',
+    'You have tools — call them only when they genuinely help:',
+    '• calculator — arithmetic expressions',
+    '• get_current_datetime — current local date/time',
+    '• format_json — validate and pretty-print JSON',
+    '• convert_units — length, mass, volume, temperature, area, time',
+    '• regex_test — test a regex pattern against text',
+    '• encode_decode — base64 / URL / HTML encoding and decoding',
+    'Call at most one tool per step. After the result, give a concise final answer.',
 ].join('\n')
 
 // ---- Component ------------------------------------------------------------
@@ -746,7 +753,7 @@ export default function ChatPage() {
     )
 
     const suggestions = agenticActive
-        ? ["What's 17% of 240?", 'What time is it right now?', 'Explain WebGPU simply']
+        ? ["What's 17% of 240?", 'Convert 5 miles to km', 'Base64-encode "hello world"']
         : ['Explain WebGPU simply', 'Write a haiku about the ocean', 'Ideas for a weekend trip']
 
     // Shared composer — rendered centered on an empty chat (ChatGPT style) and
@@ -961,7 +968,7 @@ export default function ChatPage() {
                                 type="button"
                                 onClick={() => setToolsEnabled(v => !v)}
                                 aria-pressed={agenticActive}
-                                title="Tools: calculator · datetime"
+                                title="Tools: calculator · datetime · JSON · unit converter · regex · encoder"
                                 className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-medium transition ${
                                     agenticActive
                                         ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
