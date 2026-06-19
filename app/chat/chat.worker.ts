@@ -28,7 +28,6 @@ type WorkerRequest =
           mode: RuntimeMode
           messages: ChatMessage[]
           useTools?: boolean
-          toolContext?: string
       }
     | { type: 'warm'; mode: RuntimeMode }
     | { type: 'stop'; id: string }
@@ -192,7 +191,7 @@ async function loadGenerator(mode: RuntimeMode) {
 
 type ToolDef = {
     schema: any
-    run: (args: any, ctx: { toolContext?: string }) => string
+    run: (args: any) => string
 }
 
 const TOOLS: Record<string, ToolDef> = {
@@ -415,14 +414,21 @@ async function handleGenerate(req: Extract<WorkerRequest, { type: 'generate' }>)
 
         let result: string
         try {
-            result = TOOLS[call.name].run(call.args, { toolContext: req.toolContext })
+            result = TOOLS[call.name].run(call.args)
         } catch (error) {
             result = `Error: ${errorMessage(error)}`
         }
         post({ type: 'tool-result', id: req.id, name: call.name, result })
         conversation.push({ role: 'tool', name: call.name, content: result })
     }
-    // Hit the step cap without a final answer — let the client finalize what it has.
+
+    // Hit the step cap still mid-tool-loop — force one final tool-free answer so
+    // the user isn't left on a dangling tool result with no reply.
+    if (useTools && !cancelled.has(req.id)) {
+        post({ type: 'step', id: req.id, step: MAX_AGENT_STEPS })
+        const prompt = buildPrompt(generator, conversation, false)
+        await runGeneration(generator, prompt, loadedMode, req.id, true)
+    }
 }
 
 workerSelf.addEventListener('message', event => {
