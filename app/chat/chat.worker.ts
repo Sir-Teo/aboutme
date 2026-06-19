@@ -28,7 +28,6 @@ type WorkerRequest =
           mode: RuntimeMode
           messages: ChatMessage[]
           useTools?: boolean
-          toolContext?: string
       }
     | { type: 'warm'; mode: RuntimeMode }
     | { type: 'stop'; id: string }
@@ -192,7 +191,7 @@ async function loadGenerator(mode: RuntimeMode) {
 
 type ToolDef = {
     schema: any
-    run: (args: any, ctx: { toolContext?: string }) => string
+    run: (args: any) => string
 }
 
 const TOOLS: Record<string, ToolDef> = {
@@ -249,41 +248,6 @@ const TOOLS: Record<string, ToolDef> = {
                 local: now.toLocaleString(),
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             })
-        },
-    },
-    get_profile_info: {
-        schema: {
-            type: 'function',
-            function: {
-                name: 'get_profile_info',
-                description:
-                    'Look up facts about Teo Zeng (the owner of this website) — work, education, research, projects, skills, links, or interests.',
-                parameters: {
-                    type: 'object',
-                    properties: {
-                        query: {
-                            type: 'string',
-                            description: 'What to look up, e.g. "education", "work", "projects", "links".',
-                        },
-                    },
-                    required: ['query'],
-                },
-            },
-        },
-        run: (args, ctx) => {
-            const ctxText = ctx.toolContext || ''
-            if (!ctxText) return 'No profile information is available.'
-            const query = String(args?.query ?? '')
-                .toLowerCase()
-                .trim()
-            if (!query) return ctxText
-            const lines = ctxText.split('\n').filter(Boolean)
-            const terms = query.split(/\s+/).filter(t => t.length > 2)
-            const matches = lines.filter(line => {
-                const l = line.toLowerCase()
-                return terms.some(t => l.includes(t))
-            })
-            return (matches.length ? matches : lines).join('\n')
         },
     },
 }
@@ -450,14 +414,21 @@ async function handleGenerate(req: Extract<WorkerRequest, { type: 'generate' }>)
 
         let result: string
         try {
-            result = TOOLS[call.name].run(call.args, { toolContext: req.toolContext })
+            result = TOOLS[call.name].run(call.args)
         } catch (error) {
             result = `Error: ${errorMessage(error)}`
         }
         post({ type: 'tool-result', id: req.id, name: call.name, result })
         conversation.push({ role: 'tool', name: call.name, content: result })
     }
-    // Hit the step cap without a final answer — let the client finalize what it has.
+
+    // Hit the step cap still mid-tool-loop — force one final tool-free answer so
+    // the user isn't left on a dangling tool result with no reply.
+    if (useTools && !cancelled.has(req.id)) {
+        post({ type: 'step', id: req.id, step: MAX_AGENT_STEPS })
+        const prompt = buildPrompt(generator, conversation, false)
+        await runGeneration(generator, prompt, loadedMode, req.id, true)
+    }
 }
 
 workerSelf.addEventListener('message', event => {

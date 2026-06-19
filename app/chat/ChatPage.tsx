@@ -378,16 +378,28 @@ export default function ChatPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
+    // If WebGPU is unavailable, don't leave the user stranded on a GPU-only
+    // default model — fall back to the WASM model so the first send works.
+    useEffect(() => {
+        if (gpuAvailable !== false || selectedModel.device !== 'webgpu' || streaming) return
+        const fallback = MODELS.find(m => m.device === 'wasm')
+        if (fallback) setModelId(fallback.id)
+    }, [gpuAvailable, selectedModel.device, streaming])
+
     useEffect(() => {
         if (!hydrated) return
         const t = setTimeout(() => {
-            const toSave = conversations.filter(c => c.messages.length > 0).slice(-100)
-            if (!toSave.length) {
-                localStorage.removeItem(STORAGE_KEY)
-                return
+            try {
+                const toSave = conversations.filter(c => c.messages.length > 0).slice(-100)
+                if (!toSave.length) {
+                    localStorage.removeItem(STORAGE_KEY)
+                    return
+                }
+                const savedActive = toSave.find(c => c.id === activeId)?.id ?? toSave[toSave.length - 1].id
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ conversations: toSave, activeId: savedActive }))
+            } catch {
+                /* storage full or unavailable — keep the session in memory */
             }
-            const savedActive = toSave.find(c => c.id === activeId)?.id ?? toSave[toSave.length - 1].id
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ conversations: toSave, activeId: savedActive }))
         }, 300)
         return () => clearTimeout(t)
     }, [conversations, activeId, hydrated])
@@ -660,7 +672,8 @@ export default function ChatPage() {
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        // Don't submit mid-IME-composition (Enter commits the candidate instead).
+        if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault()
             send(input)
         }
