@@ -1,573 +1,699 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { LMStudioClient, Chat, ChatMessage, tool, StructuredPredictionResult } from '@lmstudio/sdk'
-import { z } from 'zod'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 // ---- Types ----------------------------------------------------------------
 
-type Role = 'user' | 'assistant' | 'system'
+type Role = 'user' | 'assistant' | 'tool'
 type Msg = {
-    id: string
     role: Role
     content: string
-    toolCalls?: { name: string; args: string; result?: string }[]
-    stats?: { tokens: number; ttft: number; stopReason: string }
+    reasoning?: string
+    // tool rows carry the call + (eventual) result for display
+    toolName?: string
+    toolArgs?: string
+    toolResult?: string
 }
-type Conversation = { id: string; title: string; messages: Msg[]; createdAt: number; updatedAt: number }
-type ContextOverflowPolicy = 'stopAtLimit' | 'truncateMiddle' | 'rollingWindow'
-
-interface LoadedModel {
-    identifier: string
-    path: string
-    displayName?: string
+type RuntimeDevice = 'webgpu' | 'wasm'
+type RuntimeMode = {
+    device: RuntimeDevice
+    modelId: string
+    dtype: 'q4' | 'q4f16'
+    label: string
+    maxNewTokens: number
 }
+type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string }
+type WorkerResponse =
+    | { type: 'progress'; progress: string }
+    | { type: 'ready'; mode: RuntimeMode }
+    | { type: 'chunk'; id: string; chunk: string }
+    | { type: 'tool-call'; id: string; name: string; args: string }
+    | { type: 'tool-result'; id: string; name: string; result: string }
+    | { type: 'step'; id: string; step: number }
+    | { type: 'done'; id: string }
+    | { type: 'error'; id?: string; message: string }
 
-interface Settings {
-    temperature: number
-    maxTokens: number | false
-    contextOverflowPolicy: ContextOverflowPolicy
-    draftModel: string
-    useTools: boolean
-    structuredMode: boolean
-    structuredSchema: string
-}
-
-// ---- Tools ----------------------------------------------------------------
-
-const calculatorTool = tool({
-    name: 'calculator',
-    description: 'Evaluate a mathematical expression. Use for arithmetic, percentages, and unit math.',
-    parameters: { expression: z.string().describe('A math expression, e.g. "17% of 240" or "sqrt(144)"') },
-    implementation: ({ expression }) => {
-        try {
-            const sanitized = expression
-                .replace(/[^0-9+\-*/().%\s]/g, '')
-                .replace(/(\d+)%\s*of\s*(\d+(?:\.\d+)?)/gi, '($1/100)*$2')
-                .replace(/(\d+(?:\.\d+)?)%/g, '($1/100)')
-            const result = Function('"use strict"; return (' + sanitized + ')')()
-            return String(result)
-        } catch {
-            return 'Error: could not evaluate expression'
-        }
-    },
-})
-
-const unitConverterTool = tool({
-    name: 'convert_units',
-    description: 'Convert a value from one unit to another (distance, weight, temperature, volume, etc.).',
-    parameters: {
-        value: z.number().describe('The numeric value to convert'),
-        from: z.string().describe('Source unit, e.g. "miles", "kg", "fahrenheit"'),
-        to: z.string().describe('Target unit, e.g. "km", "lbs", "celsius"'),
-    },
-    implementation: ({ value, from, to }) => {
-        const conversions: Record<string, Record<string, number>> = {
-            // distance (base: meters)
-            meters: {
-                km: 0.001,
-                miles: 0.000621371,
-                feet: 3.28084,
-                inches: 39.3701,
-                yards: 1.09361,
-                cm: 100,
-                mm: 1000,
-            },
-            km: { meters: 1000, miles: 0.621371, feet: 3280.84, inches: 39370.1, yards: 1093.61, cm: 100000, mm: 1e6 },
-            miles: { km: 1.60934, meters: 1609.34, feet: 5280, inches: 63360, yards: 1760 },
-            feet: { meters: 0.3048, km: 0.0003048, miles: 0.000189394, inches: 12, yards: 0.333333, cm: 30.48 },
-            inches: { feet: 0.0833333, meters: 0.0254, cm: 2.54, mm: 25.4, yards: 0.0277778, miles: 0.0000157828 },
-            cm: { meters: 0.01, inches: 0.393701, feet: 0.0328084, mm: 10 },
-            mm: { meters: 0.001, cm: 0.1, inches: 0.0393701 },
-            // weight (base: kg)
-            kg: { lbs: 2.20462, grams: 1000, oz: 35.274, stones: 0.157473 },
-            lbs: { kg: 0.453592, grams: 453.592, oz: 16, stones: 0.0714286 },
-            grams: { kg: 0.001, lbs: 0.00220462, oz: 0.035274 },
-            oz: { grams: 28.3495, lbs: 0.0625, kg: 0.0283495 },
-            stones: { kg: 6.35029, lbs: 14 },
-            // volume (base: liters)
-            liters: { ml: 1000, gallons: 0.264172, cups: 4.22675, pints: 2.11338, quarts: 1.05669, 'fl oz': 33.814 },
-            ml: { liters: 0.001, cups: 0.00422675, gallons: 0.000264172, 'fl oz': 0.033814 },
-            gallons: { liters: 3.78541, ml: 3785.41, cups: 16, pints: 8, quarts: 4, 'fl oz': 128 },
-            cups: { liters: 0.236588, ml: 236.588, gallons: 0.0625, 'fl oz': 8 },
-            // speed
-            mph: { kph: 1.60934, ms: 0.44704, knots: 0.868976 },
-            kph: { mph: 0.621371, ms: 0.277778, knots: 0.539957 },
-            knots: { mph: 1.15078, kph: 1.852 },
-        }
-
-        const f = from.toLowerCase()
-        const t = to.toLowerCase()
-
-        if (f === 'fahrenheit' || f === 'f') {
-            if (t === 'celsius' || t === 'c') return String(((value - 32) * 5) / 9)
-            if (t === 'kelvin' || t === 'k') return String(((value - 32) * 5) / 9 + 273.15)
-        }
-        if (f === 'celsius' || f === 'c') {
-            if (t === 'fahrenheit' || t === 'f') return String((value * 9) / 5 + 32)
-            if (t === 'kelvin' || t === 'k') return String(value + 273.15)
-        }
-        if (f === 'kelvin' || f === 'k') {
-            if (t === 'celsius' || t === 'c') return String(value - 273.15)
-            if (t === 'fahrenheit' || t === 'f') return String(((value - 273.15) * 9) / 5 + 32)
-        }
-
-        if (f === t) return String(value)
-        const row = conversions[f]
-        if (row && row[t] !== undefined) return String(value * row[t])
-        return `Unknown conversion: ${from} → ${to}`
-    },
-})
-
-const base64Tool = tool({
-    name: 'encode_decode',
-    description: 'Base64 encode or decode a string, or URL encode/decode.',
-    parameters: {
-        text: z.string().describe('The string to process'),
-        operation: z.enum(['base64_encode', 'base64_decode', 'url_encode', 'url_decode']),
-    },
-    implementation: ({ text, operation }) => {
-        try {
-            if (operation === 'base64_encode') return btoa(text)
-            if (operation === 'base64_decode') return atob(text)
-            if (operation === 'url_encode') return encodeURIComponent(text)
-            if (operation === 'url_decode') return decodeURIComponent(text)
-            return 'Unknown operation'
-        } catch (e) {
-            return `Error: ${e instanceof Error ? e.message : String(e)}`
-        }
-    },
-})
-
-const jsonTool = tool({
-    name: 'format_json',
-    description: 'Parse, validate, and pretty-print a JSON string.',
-    parameters: {
-        json: z.string().describe('The JSON string to format'),
-        indent: z.number().optional().describe('Indentation spaces (default 2)'),
-    },
-    implementation: ({ json, indent = 2 }) => {
-        try {
-            const parsed = JSON.parse(json)
-            return JSON.stringify(parsed, null, indent)
-        } catch (e) {
-            return `Invalid JSON: ${e instanceof Error ? e.message : String(e)}`
-        }
-    },
-})
-
-const regexTool = tool({
-    name: 'regex_test',
-    description: 'Test a regular expression against text and return all matches.',
-    parameters: {
-        text: z.string().describe('The input text'),
-        pattern: z.string().describe('The regex pattern'),
-        flags: z.string().optional().describe('Regex flags, e.g. "gi"'),
-    },
-    implementation: ({ text, pattern, flags = 'g' }) => {
-        try {
-            const re = new RegExp(pattern, flags.includes('g') ? flags : flags + 'g')
-            const matches = Array.from(text.matchAll(re))
-            if (matches.length === 0) return 'No matches found.'
-            return matches.map(m => JSON.stringify({ match: m[0], groups: m.slice(1), index: m.index })).join('\n')
-        } catch (e) {
-            return `Regex error: ${e instanceof Error ? e.message : String(e)}`
-        }
-    },
-})
-
-const dateTimeTool = tool({
-    name: 'date_time',
-    description: 'Get current date/time or convert between timezones.',
-    parameters: {
-        timezone: z.string().optional().describe('IANA timezone name, e.g. "America/New_York". Defaults to local.'),
-        format: z.enum(['iso', 'locale', 'unix']).optional().describe('Output format (default: iso)'),
-    },
-    implementation: ({ timezone, format = 'iso' }) => {
-        try {
-            const now = new Date()
-            if (format === 'unix') return String(Math.floor(now.getTime() / 1000))
-            if (format === 'locale') {
-                return timezone ? now.toLocaleString('en-US', { timeZone: timezone }) : now.toLocaleString()
-            }
-            if (timezone) return now.toLocaleString('sv-SE', { timeZone: timezone }).replace(' ', 'T')
-            return now.toISOString()
-        } catch (e) {
-            return `Error: ${e instanceof Error ? e.message : String(e)}`
-        }
-    },
-})
-
-const ALL_TOOLS = [calculatorTool, unitConverterTool, base64Tool, jsonTool, regexTool, dateTimeTool]
-
-// ---- Helpers ----------------------------------------------------------------
-
-function genId() {
-    return Math.random().toString(36).slice(2, 10)
+type ActiveGeneration = {
+    id: string
+    targetId: string
+    raw: string
+    frame: number | null
+    resolve: () => void
+    reject: (err: Error) => void
 }
 
-function saveConvs(convs: Conversation[]) {
+type Conversation = { id: string; messages: Msg[]; createdAt: number; updatedAt: number }
+
+const EMPTY_MESSAGES: Msg[] = []
+
+// ---- Model catalog --------------------------------------------------------
+// Data-driven: every entry is a browser-runnable ONNX chat model. `agentic`
+// marks models whose chat template supports tool calling well enough for the
+// in-browser agent loop. Adding a model is just another row here.
+
+type ModelEntry = {
+    id: string
+    name: string
+    family: string
+    size: string
+    device: RuntimeDevice
+    modelId: string
+    dtype: 'q4' | 'q4f16'
+    maxNewTokens: number
+    agentic: boolean
+    note?: string
+}
+
+const MODELS: ModelEntry[] = [
+    {
+        id: 'lfm2-350m',
+        name: 'LFM2.5 350M',
+        family: 'LiquidAI',
+        size: '350M',
+        device: 'webgpu',
+        modelId: 'LiquidAI/LFM2.5-350M-ONNX',
+        dtype: 'q4f16',
+        maxNewTokens: 768,
+        agentic: true,
+        note: 'Fast · ~120MB',
+    },
+    {
+        id: 'lfm25-1.2b-instruct',
+        name: 'LFM2.5 1.2B Instruct',
+        family: 'LiquidAI',
+        size: '1.2B',
+        device: 'webgpu',
+        modelId: 'LiquidAI/LFM2.5-1.2B-Instruct-ONNX',
+        dtype: 'q4f16',
+        maxNewTokens: 768,
+        agentic: true,
+        note: 'Larger · sharper',
+    },
+    {
+        id: 'lfm25-1.2b-thinking',
+        name: 'LFM2.5 1.2B Thinking',
+        family: 'LiquidAI',
+        size: '1.2B',
+        device: 'webgpu',
+        modelId: 'LiquidAI/LFM2.5-1.2B-Thinking-ONNX',
+        dtype: 'q4f16',
+        maxNewTokens: 1024,
+        agentic: true,
+        note: 'Reasoning',
+    },
+    {
+        id: 'lfm25-8b-a1b',
+        name: 'LFM2.5 8B A1B',
+        family: 'LiquidAI',
+        size: '8B MoE',
+        device: 'webgpu',
+        modelId: 'LiquidAI/LFM2.5-8B-A1B-ONNX',
+        dtype: 'q4f16',
+        maxNewTokens: 768,
+        agentic: true,
+        note: 'MoE · 1B active · heavy',
+    },
+    {
+        id: 'gemma4-e2b',
+        name: 'Gemma 4 E2B',
+        family: 'Google Gemma',
+        size: '2.3B',
+        device: 'webgpu',
+        modelId: 'onnx-community/gemma-4-E2B-it-ONNX',
+        dtype: 'q4f16',
+        maxNewTokens: 768,
+        agentic: true,
+        note: 'Latest · ~1.5GB',
+    },
+    {
+        id: 'gemma4-e4b',
+        name: 'Gemma 4 E4B',
+        family: 'Google Gemma',
+        size: '4.5B',
+        device: 'webgpu',
+        modelId: 'onnx-community/gemma-4-E4B-it-ONNX',
+        dtype: 'q4f16',
+        maxNewTokens: 768,
+        agentic: true,
+        note: 'Highest quality · heavy',
+    },
+    {
+        id: 'qwen3-0.6b',
+        name: 'Qwen3 0.6B',
+        family: 'Qwen',
+        size: '0.6B',
+        device: 'webgpu',
+        modelId: 'onnx-community/Qwen3-0.6B-ONNX',
+        dtype: 'q4f16',
+        maxNewTokens: 768,
+        agentic: true,
+    },
+    {
+        id: 'qwen3.5-0.8b',
+        name: 'Qwen3.5 0.8B',
+        family: 'Qwen',
+        size: '0.8B',
+        device: 'webgpu',
+        modelId: 'onnx-community/Qwen3.5-0.8B-ONNX',
+        dtype: 'q4f16',
+        maxNewTokens: 768,
+        agentic: true,
+    },
+    {
+        id: 'llama3.2-1b',
+        name: 'Llama 3.2 1B',
+        family: 'Meta Llama',
+        size: '1B',
+        device: 'webgpu',
+        modelId: 'onnx-community/Llama-3.2-1B-Instruct',
+        dtype: 'q4f16',
+        maxNewTokens: 768,
+        agentic: true,
+    },
+    {
+        id: 'deepseek-r1-1.5b',
+        name: 'DeepSeek-R1 Distill 1.5B',
+        family: 'DeepSeek',
+        size: '1.5B',
+        device: 'webgpu',
+        modelId: 'onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX',
+        dtype: 'q4f16',
+        maxNewTokens: 1024,
+        agentic: false,
+        note: 'Reasoning',
+    },
+    {
+        id: 'smollm2-360m',
+        name: 'SmolLM2 360M',
+        family: 'HuggingFace SmolLM',
+        size: '360M',
+        device: 'webgpu',
+        modelId: 'HuggingFaceTB/SmolLM2-360M-Instruct',
+        dtype: 'q4f16',
+        maxNewTokens: 512,
+        agentic: false,
+    },
+    {
+        id: 'smollm2-135m',
+        name: 'SmolLM2 135M',
+        family: 'HuggingFace SmolLM',
+        size: '135M',
+        device: 'wasm',
+        modelId: 'HuggingFaceTB/SmolLM2-135M-Instruct',
+        dtype: 'q4',
+        maxNewTokens: 256,
+        agentic: false,
+        note: 'WASM fallback',
+    },
+]
+
+const DEFAULT_MODEL_ID = 'lfm2-350m'
+
+const modeFor = (m: ModelEntry): RuntimeMode => ({
+    device: m.device,
+    modelId: m.modelId,
+    dtype: m.dtype,
+    label: m.name,
+    maxNewTokens: m.maxNewTokens,
+})
+
+// ---- Helpers --------------------------------------------------------------
+
+const uid = (): string =>
+    typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)
+
+const createConv = (messages: Msg[] = []): Conversation => {
+    const now = Date.now()
+    return { id: uid(), messages, createdAt: now, updatedAt: now }
+}
+
+const convTitle = (c: Conversation): string =>
+    c.messages
+        .find(m => m.role === 'user')
+        ?.content.trim()
+        .slice(0, 60) || 'New chat'
+
+const PROBE_TIMEOUT_MS = 1200
+let gpuProbe: Promise<boolean> | null = null
+async function probeWebGPU(): Promise<boolean> {
+    const gpu = (navigator as any).gpu
+    if (!gpu?.requestAdapter) return false
     try {
-        localStorage.setItem('lms_conversations', JSON.stringify(convs))
-    } catch {}
-}
-
-function loadConvs(): Conversation[] {
-    try {
-        const raw = localStorage.getItem('lms_conversations')
-        return raw ? JSON.parse(raw) : []
+        const adapter: any = await Promise.race([
+            gpu.requestAdapter(),
+            new Promise<null>(r => setTimeout(() => r(null), PROBE_TIMEOUT_MS)),
+        ])
+        if (!adapter) return false
+        if (typeof adapter.requestDevice === 'function') {
+            const device: any = await Promise.race([
+                adapter.requestDevice(),
+                new Promise<null>(r => setTimeout(() => r(null), PROBE_TIMEOUT_MS)),
+            ])
+            if (!device) return false
+            device.destroy?.()
+        }
+        return true
     } catch {
-        return []
+        return false
+    }
+}
+const webgpuAvailable = () => (gpuProbe ??= probeWebGPU())
+
+// Strip special tokens and <think> wrappers; route reasoning vs answer.
+function parseThinking(raw: string): { reasoning: string; answer: string } {
+    const clean = (s: string) =>
+        s
+            .replace(/<\|[^|]*\|>/g, '')
+            .replace(/<think>/g, '')
+            .trim()
+    const end = raw.lastIndexOf('</think>')
+    if (end !== -1) return { reasoning: clean(raw.slice(0, end)), answer: clean(raw.slice(end + 8)) }
+    if (raw.includes('<think>')) return { reasoning: clean(raw), answer: '' }
+    return { reasoning: '', answer: clean(raw) }
+}
+
+// ---- Persistence ----------------------------------------------------------
+
+const STORAGE_KEY = 'localchat.history.v1'
+
+function loadHistory(): { convs: Conversation[]; activeId: string } | null {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY)
+        if (!raw) return null
+        const p = JSON.parse(raw)
+        if (!Array.isArray(p?.conversations) || !p.conversations.length) return null
+        const convs: Conversation[] = p.conversations
+            .filter((c: any) => c?.id && Array.isArray(c.messages) && c.messages.length > 0)
+            .map((c: any) => ({
+                id: String(c.id),
+                messages: (c.messages as any[])
+                    .filter(
+                        (m: any) =>
+                            (m.role === 'user' || m.role === 'assistant' || m.role === 'tool') &&
+                            typeof m.content === 'string'
+                    )
+                    .map((m: any) => ({
+                        role: m.role as Role,
+                        content: m.content as string,
+                        ...(typeof m.reasoning === 'string' ? { reasoning: m.reasoning } : {}),
+                        ...(typeof m.toolName === 'string' ? { toolName: m.toolName } : {}),
+                        ...(typeof m.toolArgs === 'string' ? { toolArgs: m.toolArgs } : {}),
+                        ...(typeof m.toolResult === 'string' ? { toolResult: m.toolResult } : {}),
+                    })),
+                createdAt: typeof c.createdAt === 'number' ? c.createdAt : Date.now(),
+                updatedAt: typeof c.updatedAt === 'number' ? c.updatedAt : Date.now(),
+            }))
+            .filter((c: Conversation) => c.messages.length > 0)
+            .slice(-100)
+        if (!convs.length) return null
+        const activeId = convs.find((c: Conversation) => c.id === p.activeId)?.id ?? convs[convs.length - 1].id
+        return { convs, activeId }
+    } catch {
+        return null
     }
 }
 
-function titleFromMsg(msg: string) {
-    return msg.slice(0, 60).trim() || 'New conversation'
-}
+// ---- Prompt context -------------------------------------------------------
 
-const DEFAULT_SETTINGS: Settings = {
-    temperature: 0.7,
-    maxTokens: false,
-    contextOverflowPolicy: 'rollingWindow',
-    draftModel: '',
-    useTools: true,
-    structuredMode: false,
-    structuredSchema: '{"answer": "string"}',
-}
+const SYSTEM_PROMPT_BASE = [
+    "You are a helpful AI assistant running entirely in the user's browser via on-device inference — no data leaves the device.",
+    'Answer any question helpfully and concisely.',
+].join('\n')
 
-// ---- Component ----------------------------------------------------------------
+const SYSTEM_PROMPT_TOOLS = [
+    SYSTEM_PROMPT_BASE,
+    'You have tools — call them only when they genuinely help:',
+    '• calculator — arithmetic expressions',
+    '• get_current_datetime — current local date/time',
+    '• format_json — validate and pretty-print JSON',
+    '• convert_units — length, mass, volume, temperature, area, time',
+    '• regex_test — test a regex pattern against text',
+    '• encode_decode — base64 / URL / HTML encoding and decoding',
+    'Call at most one tool per step. After the result, give a concise final answer.',
+].join('\n')
+
+// ---- Component ------------------------------------------------------------
 
 export default function ChatPage() {
-    // Connection
-    const [serverUrl, setServerUrl] = useState('ws://localhost:1234')
-    const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected')
-    const [statusMsg, setStatusMsg] = useState('')
-    const clientRef = useRef<LMStudioClient | null>(null)
+    const [modelId, setModelId] = useState<string>(DEFAULT_MODEL_ID)
+    const selectedModel = MODELS.find(m => m.id === modelId) ?? MODELS[0]
 
-    // Models
-    const [loadedModels, setLoadedModels] = useState<LoadedModel[]>([])
-    const [selectedModelId, setSelectedModelId] = useState('')
-    const [loadingModels, setLoadingModels] = useState(false)
+    const [toolsEnabled, setToolsEnabled] = useState(true)
+    const [gpuAvailable, setGpuAvailable] = useState<boolean | null>(null)
+    const [conversations, setConversations] = useState<Conversation[]>(() => [createConv()])
+    const [activeId, setActiveId] = useState<string>('')
+    const [hydrated, setHydrated] = useState(false)
 
-    // Conversations
-    const [conversations, setConversations] = useState<Conversation[]>([])
-    const [activeConvId, setActiveConvId] = useState<string | null>(null)
-
-    // UI state
-    const [input, setInput] = useState('')
+    const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+    const [progress, setProgress] = useState('')
     const [streaming, setStreaming] = useState(false)
+    const [streamingId, setStreamingId] = useState<string | null>(null)
+    const [input, setInput] = useState('')
     const [sidebarOpen, setSidebarOpen] = useState(false)
-    const [settingsOpen, setSettingsOpen] = useState(false)
-    const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
-    const [embeddingText, setEmbeddingText] = useState('')
-    const [embeddingResult, setEmbeddingResult] = useState<string | null>(null)
-    const [embeddingLoading, setEmbeddingLoading] = useState(false)
+    const [modelMenuOpen, setModelMenuOpen] = useState(false)
 
-    const predictionRef = useRef<{ cancel: () => void } | null>(null)
-    const messagesEndRef = useRef<HTMLDivElement>(null)
+    const workerRef = useRef<Worker | null>(null)
+    const generationRef = useRef<ActiveGeneration | null>(null)
+    const scrollRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
+    const stickRef = useRef(true)
 
-    const activeConv = conversations.find(c => c.id === activeConvId) ?? null
+    const active = conversations.find(c => c.id === activeId)
+    const messages = active?.messages ?? EMPTY_MESSAGES
+    const agenticActive = selectedModel.agentic && toolsEnabled
 
-    // Load conversations on mount
+    // --- conversation mutation helpers ---
+    const updateConv = useCallback((id: string, fn: (msgs: Msg[]) => Msg[]) => {
+        setConversations(prev =>
+            prev.map(c => (c.id === id ? { ...c, messages: fn(c.messages), updatedAt: Date.now() } : c))
+        )
+    }, [])
+
+    // Hydrate from localStorage + probe WebGPU after mount.
     useEffect(() => {
-        setConversations(loadConvs())
+        const saved = loadHistory()
+        if (saved) {
+            setConversations(saved.convs)
+            setActiveId(saved.activeId)
+        } else {
+            setActiveId(conversations[0].id)
+        }
+        setHydrated(true)
+        webgpuAvailable()
+            .then(setGpuAvailable)
+            .catch(() => setGpuAvailable(false))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    // Auto-scroll
+    // If WebGPU is unavailable, don't leave the user stranded on a GPU-only
+    // default model — fall back to the WASM model so the first send works.
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, [activeConv?.messages])
+        if (gpuAvailable !== false || selectedModel.device !== 'webgpu' || streaming) return
+        const fallback = MODELS.find(m => m.device === 'wasm')
+        if (fallback) setModelId(fallback.id)
+    }, [gpuAvailable, selectedModel.device, streaming])
 
-    // Connect to LM Studio
-    const connect = useCallback(async () => {
-        setStatus('connecting')
-        setStatusMsg('Connecting…')
-        try {
-            const client = new LMStudioClient({ baseUrl: serverUrl })
-            // Test connection by listing models
-            const models = await client.llm.listLoaded()
-            clientRef.current = client
-            setLoadedModels(models as LoadedModel[])
-            if (models.length > 0) setSelectedModelId((models[0] as LoadedModel).identifier)
-            setStatus('connected')
-            setStatusMsg(`${models.length} model${models.length !== 1 ? 's' : ''} loaded`)
-        } catch (e) {
-            setStatus('error')
-            setStatusMsg(e instanceof Error ? e.message : 'Connection failed')
-            clientRef.current = null
-        }
-    }, [serverUrl])
-
-    const disconnect = useCallback(() => {
-        clientRef.current = null
-        setStatus('disconnected')
-        setStatusMsg('')
-        setLoadedModels([])
-        setSelectedModelId('')
-    }, [])
-
-    const refreshModels = useCallback(async () => {
-        if (!clientRef.current) return
-        setLoadingModels(true)
-        try {
-            const models = await clientRef.current.llm.listLoaded()
-            setLoadedModels(models as LoadedModel[])
-            if (models.length > 0 && !selectedModelId) setSelectedModelId((models[0] as LoadedModel).identifier)
-            setStatusMsg(`${models.length} model${models.length !== 1 ? 's' : ''} loaded`)
-        } catch (e) {
-            setStatusMsg(e instanceof Error ? e.message : 'Refresh failed')
-        } finally {
-            setLoadingModels(false)
-        }
-    }, [selectedModelId])
-
-    // Conversation management
-    const newChat = useCallback(() => {
-        const conv: Conversation = {
-            id: genId(),
-            title: 'New conversation',
-            messages: [],
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-        }
-        setConversations(prev => {
-            const next = [conv, ...prev]
-            saveConvs(next)
-            return next
-        })
-        setActiveConvId(conv.id)
-        setSidebarOpen(false)
-        inputRef.current?.focus()
-    }, [])
-
-    const deleteConv = useCallback((id: string) => {
-        setConversations(prev => {
-            const next = prev.filter(c => c.id !== id)
-            saveConvs(next)
-            return next
-        })
-        setActiveConvId(prev => (prev === id ? null : prev))
-    }, [])
-
-    const updateConv = useCallback((id: string, updater: (c: Conversation) => Conversation) => {
-        setConversations(prev => {
-            const next = prev.map(c => (c.id === id ? updater(c) : c))
-            saveConvs(next)
-            return next
-        })
-    }, [])
-
-    // Send message
-    const sendMessage = useCallback(async () => {
-        const text = input.trim()
-        if (!text || streaming || !clientRef.current || !selectedModelId) return
-
-        let convId = activeConvId
-        if (!convId) {
-            const conv: Conversation = {
-                id: genId(),
-                title: titleFromMsg(text),
-                messages: [],
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
+    useEffect(() => {
+        if (!hydrated) return
+        const t = setTimeout(() => {
+            try {
+                const toSave = conversations.filter(c => c.messages.length > 0).slice(-100)
+                if (!toSave.length) {
+                    localStorage.removeItem(STORAGE_KEY)
+                    return
+                }
+                const savedActive = toSave.find(c => c.id === activeId)?.id ?? toSave[toSave.length - 1].id
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ conversations: toSave, activeId: savedActive }))
+            } catch {
+                /* storage full or unavailable — keep the session in memory */
             }
-            setConversations(prev => {
-                const next = [conv, ...prev]
-                saveConvs(next)
+        }, 300)
+        return () => clearTimeout(t)
+    }, [conversations, activeId, hydrated])
+
+    useEffect(() => {
+        return () => {
+            const g = generationRef.current
+            if (g?.frame != null) cancelAnimationFrame(g.frame)
+            workerRef.current?.terminate()
+        }
+    }, [])
+
+    useEffect(() => {
+        if (stickRef.current) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+    }, [messages, progress])
+
+    // Live-update the trailing assistant bubble with streamed text.
+    const flushGeneration = useCallback(
+        (gen: ActiveGeneration, final = false) => {
+            const { reasoning, answer } = parseThinking(gen.raw)
+            updateConv(gen.targetId, msgs => {
+                const next = [...msgs]
+                // find last assistant row
+                for (let i = next.length - 1; i >= 0; i--) {
+                    if (next[i].role === 'assistant') {
+                        next[i] = {
+                            role: 'assistant',
+                            content: final ? answer.trim() : answer,
+                            ...(reasoning ? { reasoning } : {}),
+                        }
+                        return next
+                    }
+                    if (next[i].role === 'user') break
+                }
                 return next
             })
-            convId = conv.id
-            setActiveConvId(convId)
-        }
-
-        const userMsg: Msg = { id: genId(), role: 'user', content: text }
-        updateConv(convId, c => ({
-            ...c,
-            title: c.messages.length === 0 ? titleFromMsg(text) : c.title,
-            messages: [...c.messages, userMsg],
-            updatedAt: Date.now(),
-        }))
-        setInput('')
-        setStreaming(true)
-
-        const assistantId = genId()
-        updateConv(convId!, c => ({
-            ...c,
-            messages: [...c.messages, { id: assistantId, role: 'assistant' as Role, content: '' }],
-            updatedAt: Date.now(),
-        }))
-
-        try {
-            const client = clientRef.current
-            const model = await client.llm.model(selectedModelId)
-
-            // Build Chat history from conversation
-            const currentConv =
-                conversations.find(c => c.id === convId) ?? ({ messages: [userMsg] } as unknown as Conversation)
-            const history = [...currentConv.messages, userMsg]
-            const chat = Chat.empty()
-            chat.append('system', 'You are a helpful assistant.')
-            for (const m of history) {
-                if (m.role === 'user') chat.append('user', m.content)
-                else if (m.role === 'assistant' && m.content) chat.append('assistant', m.content)
-            }
-
-            const respondOpts: Record<string, unknown> = {
-                temperature: settings.temperature,
-                maxTokens: settings.maxTokens,
-                contextOverflowPolicy: settings.contextOverflowPolicy,
-            }
-            if (settings.draftModel) respondOpts['draftModel'] = settings.draftModel
-
-            if (settings.structuredMode) {
-                // Structured output
-                let schema: z.ZodTypeAny
-                try {
-                    const parsed = JSON.parse(settings.structuredSchema)
-                    const shape: Record<string, z.ZodTypeAny> = {}
-                    for (const [k, v] of Object.entries(parsed)) {
-                        shape[k] = v === 'number' ? z.number() : v === 'boolean' ? z.boolean() : z.string()
-                    }
-                    schema = z.object(shape)
-                } catch {
-                    schema = z.object({ answer: z.string() })
-                }
-                respondOpts['structured'] = schema
-                const result = (await model.respond(
-                    chat,
-                    respondOpts as Parameters<typeof model.respond>[1]
-                )) as unknown as StructuredPredictionResult<unknown>
-                const content =
-                    typeof result.parsed === 'object'
-                        ? JSON.stringify(result.parsed, null, 2)
-                        : String(result.parsed ?? result.content)
-                updateConv(convId!, c => ({
-                    ...c,
-                    messages: c.messages.map(m => (m.id === assistantId ? { ...m, content } : m)),
-                    updatedAt: Date.now(),
-                }))
-            } else if (settings.useTools) {
-                // Agentic tool use with .act()
-                let buffer = ''
-                const toolCallLog: { name: string; args: string; result?: string }[] = []
-
-                await model.act(chat, ALL_TOOLS, {
-                    ...respondOpts,
-                    onMessage: (msg: ChatMessage) => {
-                        chat.append(msg)
-                    },
-                    onPredictionFragment: ({ content }: { content: string }) => {
-                        buffer += content
-                        updateConv(convId!, c => ({
-                            ...c,
-                            messages: c.messages.map(m => (m.id === assistantId ? { ...m, content: buffer } : m)),
-                            updatedAt: Date.now(),
-                        }))
-                    },
-                } as Parameters<typeof model.act>[2])
-
-                updateConv(convId!, c => ({
-                    ...c,
-                    messages: c.messages.map(m =>
-                        m.id === assistantId
-                            ? { ...m, content: buffer, toolCalls: toolCallLog.length > 0 ? toolCallLog : undefined }
-                            : m
-                    ),
-                    updatedAt: Date.now(),
-                }))
-            } else {
-                // Plain streaming
-                const prediction = model.respond(chat, respondOpts as Parameters<typeof model.respond>[1])
-                predictionRef.current = prediction
-
-                let buffer = ''
-                for await (const { content } of prediction) {
-                    buffer += content
-                    updateConv(convId!, c => ({
-                        ...c,
-                        messages: c.messages.map(m => (m.id === assistantId ? { ...m, content: buffer } : m)),
-                        updatedAt: Date.now(),
-                    }))
-                }
-
-                const result = await prediction.result()
-                const stats = {
-                    tokens: result.stats?.predictedTokensCount ?? 0,
-                    ttft: result.stats?.timeToFirstTokenSec ?? 0,
-                    stopReason: result.stats?.stopReason ?? '',
-                }
-                updateConv(convId!, c => ({
-                    ...c,
-                    messages: c.messages.map(m => (m.id === assistantId ? { ...m, stats } : m)),
-                    updatedAt: Date.now(),
-                }))
-            }
-        } catch (e) {
-            if (e instanceof Error && e.message.toLowerCase().includes('cancel')) {
-                // User cancelled
-            } else {
-                const errMsg = e instanceof Error ? e.message : 'An error occurred'
-                updateConv(convId!, c => ({
-                    ...c,
-                    messages: c.messages.map(m => (m.id === assistantId ? { ...m, content: `Error: ${errMsg}` } : m)),
-                    updatedAt: Date.now(),
-                }))
-            }
-        } finally {
-            predictionRef.current = null
-            setStreaming(false)
-        }
-    }, [input, streaming, activeConvId, selectedModelId, settings, conversations, updateConv])
-
-    const cancelGeneration = useCallback(() => {
-        predictionRef.current?.cancel()
-    }, [])
-
-    const computeEmbedding = useCallback(async () => {
-        if (!clientRef.current || !embeddingText.trim()) return
-        setEmbeddingLoading(true)
-        setEmbeddingResult(null)
-        try {
-            const models = await clientRef.current.embedding.listLoaded()
-            if (!models || (models as unknown[]).length === 0) {
-                setEmbeddingResult('No embedding models loaded in LM Studio.')
-                return
-            }
-            const embModel = await clientRef.current.embedding.model((models[0] as LoadedModel).identifier)
-            const { embedding } = await embModel.embed(embeddingText)
-            const preview = (embedding as number[])
-                .slice(0, 8)
-                .map((v: number) => v.toFixed(4))
-                .join(', ')
-            setEmbeddingResult(`Dim: ${(embedding as number[]).length} | First 8: [${preview}, …]`)
-        } catch (e) {
-            setEmbeddingResult(`Error: ${e instanceof Error ? e.message : String(e)}`)
-        } finally {
-            setEmbeddingLoading(false)
-        }
-    }, [embeddingText])
-
-    const sorted = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt)
-
-    const handleKeyDown = useCallback(
-        (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault()
-                sendMessage()
-            }
         },
-        [sendMessage]
+        [updateConv]
     )
 
-    const statusColor = {
-        disconnected: 'bg-slate-400',
-        connecting: 'bg-yellow-400 animate-pulse',
-        connected: 'bg-green-400',
-        error: 'bg-red-400',
-    }[status]
+    const failGeneration = useCallback((message: string) => {
+        const gen = generationRef.current
+        if (gen?.frame != null) cancelAnimationFrame(gen.frame)
+        generationRef.current = null
+        gen?.reject(new Error(message))
+    }, [])
 
-    // ---- Sidebar ----------------------------------------------------------------
+    const getWorker = useCallback((): Worker | null => {
+        if (workerRef.current) return workerRef.current
+        let worker: Worker
+        try {
+            worker = new Worker(new URL('./chat.worker.ts', import.meta.url), { type: 'module' })
+        } catch {
+            return null
+        }
+
+        worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
+            const msg = e.data
+            const gen = generationRef.current
+
+            if (msg.type === 'progress') {
+                setStatus('loading')
+                setProgress(msg.progress)
+            } else if (msg.type === 'ready') {
+                setStatus('ready')
+                setProgress('')
+            } else if (msg.type === 'step') {
+                if (!gen || gen.id !== msg.id) return
+                // step 0 reuses the assistant bubble created on send(); later steps
+                // (after a tool call) start a fresh assistant bubble.
+                gen.raw = ''
+                if (msg.step > 0) updateConv(gen.targetId, m => [...m, { role: 'assistant', content: '' }])
+            } else if (msg.type === 'chunk') {
+                if (!gen || gen.id !== msg.id) return
+                gen.raw += msg.chunk
+                if (gen.frame === null) {
+                    gen.frame = requestAnimationFrame(() => {
+                        gen.frame = null
+                        if (generationRef.current?.id === gen.id) flushGeneration(gen)
+                    })
+                }
+            } else if (msg.type === 'tool-call') {
+                if (!gen || gen.id !== msg.id) return
+                if (gen.frame != null) cancelAnimationFrame(gen.frame)
+                gen.frame = null
+                // The streamed bubble was the model deciding to call a tool — replace
+                // it with a tool row (hides the raw tool-call syntax).
+                updateConv(gen.targetId, msgs => {
+                    const next = [...msgs]
+                    for (let i = next.length - 1; i >= 0; i--) {
+                        if (next[i].role === 'assistant') {
+                            next[i] = { role: 'tool', content: '', toolName: msg.name, toolArgs: msg.args }
+                            return next
+                        }
+                        if (next[i].role === 'user') break
+                    }
+                    return [...next, { role: 'tool', content: '', toolName: msg.name, toolArgs: msg.args }]
+                })
+            } else if (msg.type === 'tool-result') {
+                if (!gen || gen.id !== msg.id) return
+                updateConv(gen.targetId, msgs => {
+                    const next = [...msgs]
+                    for (let i = next.length - 1; i >= 0; i--) {
+                        if (
+                            next[i].role === 'tool' &&
+                            next[i].toolName === msg.name &&
+                            next[i].toolResult === undefined
+                        ) {
+                            next[i] = { ...next[i], toolResult: msg.result }
+                            return next
+                        }
+                    }
+                    return next
+                })
+            } else if (msg.type === 'done') {
+                if (!gen || gen.id !== msg.id) return
+                if (gen.frame != null) cancelAnimationFrame(gen.frame)
+                gen.frame = null
+                flushGeneration(gen, true)
+                generationRef.current = null
+                setStatus('ready')
+                setProgress('')
+                gen.resolve()
+            } else if (msg.type === 'error') {
+                if (gen && (!msg.id || gen.id === msg.id)) {
+                    if (gen.frame != null) cancelAnimationFrame(gen.frame)
+                    generationRef.current = null
+                    gen.reject(new Error(msg.message))
+                }
+                setStatus('error')
+                setProgress('')
+            }
+        }
+
+        worker.onerror = event => {
+            setProgress('')
+            worker.terminate()
+            if (workerRef.current === worker) workerRef.current = null
+            setStatus('error')
+            if (generationRef.current) failGeneration(event.message || 'Worker failed.')
+        }
+
+        workerRef.current = worker
+        return worker
+    }, [failGeneration, flushGeneration, updateConv])
+
+    const stopGeneration = useCallback(() => {
+        const gen = generationRef.current
+        if (!gen) return
+        if (gen.frame != null) cancelAnimationFrame(gen.frame)
+        gen.frame = null
+        if (workerRef.current) workerRef.current.postMessage({ type: 'stop', id: gen.id })
+    }, [])
+
+    const send = useCallback(
+        async (text: string) => {
+            const q = text.trim()
+            if (!q || streaming) return
+            const targetId = activeId
+            const base = conversations.find(c => c.id === targetId)?.messages ?? []
+            const history: Msg[] = [...base, { role: 'user', content: q }]
+            setInput('')
+            updateConv(targetId, () => [...history, { role: 'assistant', content: '' }])
+            setStreaming(true)
+            setStreamingId(targetId)
+            stickRef.current = true
+
+            const mode = modeFor(selectedModel)
+            const useTools = selectedModel.agentic && toolsEnabled
+
+            try {
+                if (!workerRef.current) {
+                    setStatus('loading')
+                    setProgress(`${mode.label}: starting worker...`)
+                }
+                const worker = getWorker()
+                if (!worker) throw new Error('Web Workers are unavailable in this browser.')
+
+                const id = uid()
+                // Send a clean user/assistant transcript (tool rows are display-only).
+                const promptMessages: ChatMessage[] = [
+                    { role: 'system', content: useTools ? SYSTEM_PROMPT_TOOLS : SYSTEM_PROMPT_BASE },
+                    ...history
+                        .filter(m => m.role === 'user' || (m.role === 'assistant' && m.content.trim()))
+                        .slice(-12)
+                        .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+                ]
+
+                await new Promise<void>((resolve, reject) => {
+                    generationRef.current = { id, targetId, raw: '', frame: null, resolve, reject }
+                    worker.postMessage({
+                        type: 'generate',
+                        id,
+                        mode,
+                        messages: promptMessages,
+                        useTools,
+                    })
+                })
+            } catch (err) {
+                setStatus('ready')
+                setProgress('')
+                const errMsg = err instanceof Error ? err.message : 'Something went wrong.'
+                updateConv(targetId, msgs => {
+                    const next = [...msgs]
+                    for (let i = next.length - 1; i >= 0; i--) {
+                        if (next[i].role === 'assistant') {
+                            next[i] = { role: 'assistant', content: `⚠️ ${errMsg}` }
+                            return next
+                        }
+                    }
+                    return [...next, { role: 'assistant', content: `⚠️ ${errMsg}` }]
+                })
+            } finally {
+                setStreaming(false)
+                setStreamingId(null)
+                inputRef.current?.focus()
+            }
+        },
+        [activeId, conversations, getWorker, selectedModel, streaming, toolsEnabled, updateConv]
+    )
+
+    const newChat = useCallback(() => {
+        const empty = conversations.find(c => c.messages.length === 0)
+        if (empty) {
+            setActiveId(empty.id)
+        } else {
+            const next = createConv()
+            setConversations(prev => [...prev, next])
+            setActiveId(next.id)
+        }
+        setInput('')
+        setSidebarOpen(false)
+        inputRef.current?.focus()
+    }, [conversations])
+
+    const switchModel = useCallback(
+        (id: string) => {
+            if (id === modelId || streaming) return
+            workerRef.current?.terminate()
+            workerRef.current = null
+            setStatus('idle')
+            setProgress('')
+            setModelId(id)
+            setSidebarOpen(false)
+        },
+        [modelId, streaming]
+    )
+
+    const sorted = useMemo(
+        () => [...conversations].filter(c => c.messages.length > 0).sort((a, b) => b.updatedAt - a.updatedAt),
+        [conversations]
+    )
+
+    const families = useMemo(() => {
+        const order: string[] = []
+        const byFamily: Record<string, ModelEntry[]> = {}
+        for (const m of MODELS) {
+            if (!byFamily[m.family]) {
+                byFamily[m.family] = []
+                order.push(m.family)
+            }
+            byFamily[m.family].push(m)
+        }
+        return order.map(f => ({ family: f, models: byFamily[f] }))
+    }, [])
+
+    const onScroll = () => {
+        const el = scrollRef.current
+        if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        // Don't submit mid-IME-composition (Enter commits the candidate instead).
+        if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault()
+            send(input)
+        }
+    }
+
+    const statusColor =
+        status === 'ready'
+            ? 'bg-emerald-500'
+            : status === 'loading'
+            ? 'animate-pulse bg-amber-400'
+            : status === 'error'
+            ? 'bg-rose-500'
+            : 'bg-slate-300 dark:bg-slate-600'
 
     const sidebarContent = (
         <div className="flex h-full flex-col bg-slate-50 dark:bg-slate-900">
@@ -578,64 +704,45 @@ export default function ChatPage() {
                     className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[14px] font-medium text-slate-700 transition hover:bg-slate-200/60 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                     <svg
-                        width="16"
-                        height="16"
                         viewBox="0 0 24 24"
+                        className="h-4 w-4"
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                     >
-                        <path d="M12 20h9" />
-                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                        <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
                     </svg>
                     New chat
                 </button>
             </div>
+
+            {/* History */}
             <div className="flex-1 overflow-y-auto px-2 py-2">
                 {sorted.length === 0 ? (
-                    <p className="px-2 py-1 text-[13px] text-slate-400">No conversations yet.</p>
+                    <p className="px-2 py-1 text-[13px] text-slate-400 dark:text-slate-500">No conversations yet.</p>
                 ) : (
                     <ul className="space-y-0.5">
-                        {sorted.map(conv => (
-                            <li key={conv.id} className="group relative">
+                        {sorted.map(c => (
+                            <li key={c.id}>
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setActiveConvId(conv.id)
+                                        setActiveId(c.id)
                                         setSidebarOpen(false)
+                                        stickRef.current = true
                                     }}
-                                    className={`w-full rounded-lg px-2.5 py-1.5 text-left text-[13px] leading-snug transition ${
-                                        conv.id === activeConvId
-                                            ? 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-white'
-                                            : 'text-slate-600 hover:bg-slate-200/60 dark:text-slate-300 dark:hover:bg-slate-800'
+                                    className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition ${
+                                        c.id === activeId
+                                            ? 'bg-slate-200/70 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                            : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-300 dark:hover:bg-slate-800/60'
                                     }`}
                                 >
-                                    <span className="block truncate pr-6">{conv.title}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => deleteConv(conv.id)}
-                                    className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 opacity-0 transition hover:text-red-500 group-hover:opacity-100"
-                                    aria-label="Delete"
-                                >
-                                    <svg
-                                        width="12"
-                                        height="12"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <polyline points="3 6 5 6 21 6" />
-                                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                        <path d="M10 11v6" />
-                                        <path d="M14 11v6" />
-                                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                                    </svg>
+                                    {streamingId === c.id && (
+                                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+                                    )}
+                                    <span className="block truncate text-[14px]">{convTitle(c)}</span>
                                 </button>
                             </li>
                         ))}
@@ -645,448 +752,392 @@ export default function ChatPage() {
         </div>
     )
 
-    // ---- Settings Panel --------------------------------------------------------
+    const suggestions = agenticActive
+        ? ["What's 17% of 240?", 'Convert 5 miles to km', 'Base64-encode "hello world"']
+        : ['Explain WebGPU simply', 'Write a haiku about the ocean', 'Ideas for a weekend trip']
 
-    const settingsPanel = settingsOpen && (
-        <div className="absolute right-0 top-12 z-50 w-80 rounded-xl border border-slate-200 bg-white p-4 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-            <h3 className="mb-3 text-[13px] font-semibold text-slate-700 dark:text-slate-200">Settings</h3>
-            <div className="space-y-3">
-                <label className="block">
-                    <span className="text-[12px] text-slate-500 dark:text-slate-400">
-                        Temperature: {settings.temperature}
-                    </span>
-                    <input
-                        type="range"
-                        min="0"
-                        max="2"
-                        step="0.05"
-                        value={settings.temperature}
-                        onChange={e => setSettings(s => ({ ...s, temperature: parseFloat(e.target.value) }))}
-                        className="mt-1 w-full accent-blue-500"
-                    />
-                </label>
-                <label className="block">
-                    <span className="text-[12px] text-slate-500 dark:text-slate-400">Max tokens</span>
-                    <div className="mt-1 flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            checked={settings.maxTokens === false}
-                            onChange={e => setSettings(s => ({ ...s, maxTokens: e.target.checked ? false : 2048 }))}
-                            className="accent-blue-500"
-                        />
-                        <span className="text-[12px] text-slate-500 dark:text-slate-400">Unlimited</span>
-                        {settings.maxTokens !== false && (
-                            <input
-                                type="number"
-                                value={settings.maxTokens}
-                                min={1}
-                                onChange={e =>
-                                    setSettings(s => ({ ...s, maxTokens: parseInt(e.target.value) || 2048 }))
-                                }
-                                className="w-24 rounded border border-slate-300 px-2 py-0.5 text-[12px] dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                            />
-                        )}
-                    </div>
-                </label>
-                <label className="block">
-                    <span className="text-[12px] text-slate-500 dark:text-slate-400">Context overflow</span>
-                    <select
-                        value={settings.contextOverflowPolicy}
-                        onChange={e =>
-                            setSettings(s => ({ ...s, contextOverflowPolicy: e.target.value as ContextOverflowPolicy }))
-                        }
-                        className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-[12px] dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                    >
-                        <option value="rollingWindow">Rolling window</option>
-                        <option value="truncateMiddle">Truncate middle</option>
-                        <option value="stopAtLimit">Stop at limit</option>
-                    </select>
-                </label>
-                <label className="block">
-                    <span className="text-[12px] text-slate-500 dark:text-slate-400">
-                        Draft model (speculative decoding)
-                    </span>
-                    <input
-                        type="text"
-                        placeholder="e.g. lmstudio-community/draft-model"
-                        value={settings.draftModel}
-                        onChange={e => setSettings(s => ({ ...s, draftModel: e.target.value }))}
-                        className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[12px] dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                    />
-                </label>
-                <label className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        checked={settings.useTools}
-                        onChange={e => setSettings(s => ({ ...s, useTools: e.target.checked }))}
-                        className="accent-blue-500"
-                    />
-                    <span className="text-[12px] text-slate-500 dark:text-slate-400">Enable agentic tools</span>
-                </label>
-                <label className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        checked={settings.structuredMode}
-                        onChange={e => setSettings(s => ({ ...s, structuredMode: e.target.checked }))}
-                        className="accent-blue-500"
-                    />
-                    <span className="text-[12px] text-slate-500 dark:text-slate-400">Structured output</span>
-                </label>
-                {settings.structuredMode && (
-                    <label className="block">
-                        <span className="text-[12px] text-slate-500 dark:text-slate-400">
-                            Schema (JSON: key → type)
-                        </span>
-                        <textarea
-                            value={settings.structuredSchema}
-                            onChange={e => setSettings(s => ({ ...s, structuredSchema: e.target.value }))}
-                            rows={3}
-                            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 font-mono text-[11px] dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                        />
-                    </label>
-                )}
-
-                {/* Embeddings */}
-                <div className="border-t border-slate-200 pt-2 dark:border-slate-700">
-                    <span className="text-[12px] font-medium text-slate-600 dark:text-slate-300">Embeddings</span>
-                    <textarea
-                        value={embeddingText}
-                        onChange={e => setEmbeddingText(e.target.value)}
-                        placeholder="Text to embed…"
-                        rows={2}
-                        className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-[12px] dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                    />
+    // Shared composer — rendered centered on an empty chat (ChatGPT style) and
+    // pinned to the bottom once a conversation has started.
+    const composer = (
+        <div className="mx-auto w-full max-w-3xl">
+            <div className="flex items-end gap-2 rounded-[26px] border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm transition focus-within:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-slate-600">
+                <textarea
+                    ref={inputRef}
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={streaming ? 'Generating…' : 'Ask anything'}
+                    disabled={streaming}
+                    rows={1}
+                    style={{ resize: 'none' }}
+                    className="max-h-44 flex-1 bg-transparent px-2 py-2 text-[15px] text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60 dark:text-slate-100"
+                />
+                {streaming ? (
                     <button
                         type="button"
-                        onClick={computeEmbedding}
-                        disabled={embeddingLoading || !clientRef.current}
-                        className="mt-1 w-full rounded bg-slate-100 px-2 py-1 text-[12px] text-slate-700 transition hover:bg-slate-200 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200"
+                        onClick={stopGeneration}
+                        aria-label="Stop generation"
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-900 text-white transition hover:opacity-90 dark:bg-white dark:text-slate-900"
                     >
-                        {embeddingLoading ? 'Computing…' : 'Compute embedding'}
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor">
+                            <rect x="7" y="7" width="10" height="10" rx="2" />
+                        </svg>
                     </button>
-                    {embeddingResult && (
-                        <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                            {embeddingResult}
-                        </p>
-                    )}
-                </div>
-            </div>
-        </div>
-    )
-
-    // ---- Main render -----------------------------------------------------------
-
-    return (
-        <div className="flex h-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-950 dark:text-white">
-            {/* Mobile sidebar overlay */}
-            {sidebarOpen && (
-                <div className="fixed inset-0 z-30 bg-black/30 md:hidden" onClick={() => setSidebarOpen(false)} />
-            )}
-
-            {/* Sidebar */}
-            <aside
-                className={`fixed inset-y-0 left-0 z-40 w-64 transform border-r border-slate-200 transition-transform duration-200 dark:border-slate-800 md:relative md:translate-x-0 ${
-                    sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-                }`}
-            >
-                {sidebarContent}
-            </aside>
-
-            {/* Main */}
-            <div className="flex min-w-0 flex-1 flex-col">
-                {/* Header */}
-                <header className="flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-2.5 dark:border-slate-800">
+                ) : (
                     <button
                         type="button"
-                        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 md:hidden"
-                        onClick={() => setSidebarOpen(s => !s)}
-                        aria-label="Toggle sidebar"
+                        disabled={!input.trim()}
+                        onClick={() => send(input)}
+                        aria-label="Send"
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-900 text-white transition enabled:hover:opacity-90 disabled:opacity-30 dark:bg-white dark:text-slate-900"
                     >
                         <svg
-                            width="18"
-                            height="18"
                             viewBox="0 0 24 24"
+                            className="h-4 w-4"
                             fill="none"
                             stroke="currentColor"
-                            strokeWidth="2"
+                            strokeWidth="2.2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
                         >
-                            <line x1="3" y1="6" x2="21" y2="6" />
-                            <line x1="3" y1="12" x2="21" y2="12" />
-                            <line x1="3" y1="18" x2="21" y2="18" />
+                            <path d="M12 19V5M5 12l7-7 7 7" />
                         </svg>
                     </button>
+                )}
+            </div>
+            <p className="mt-2 text-center text-[11px] text-slate-300 dark:text-slate-600">
+                On-device · no data leaves your device
+            </p>
+        </div>
+    )
 
-                    {/* Connection bar */}
-                    <div className="flex flex-1 items-center gap-2 overflow-hidden">
-                        <span className={`h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
-                        {status !== 'connected' ? (
-                            <>
-                                <input
-                                    type="text"
-                                    value={serverUrl}
-                                    onChange={e => setServerUrl(e.target.value)}
-                                    placeholder="ws://localhost:1234"
-                                    className="min-w-0 flex-1 rounded border border-slate-300 bg-transparent px-2 py-0.5 text-[13px] focus:outline-none dark:border-slate-600"
-                                    onKeyDown={e => e.key === 'Enter' && connect()}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={connect}
-                                    disabled={status === 'connecting'}
-                                    className="shrink-0 rounded-lg bg-blue-500 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-blue-600 disabled:opacity-60"
-                                >
-                                    {status === 'connecting' ? 'Connecting…' : 'Connect'}
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <select
-                                    value={selectedModelId}
-                                    onChange={e => setSelectedModelId(e.target.value)}
-                                    className="min-w-0 flex-1 truncate rounded border border-slate-300 bg-transparent px-2 py-0.5 text-[13px] focus:outline-none dark:border-slate-600 dark:bg-slate-950"
-                                >
-                                    {loadedModels.length === 0 && <option value="">No models loaded</option>}
-                                    {loadedModels.map(m => (
-                                        <option key={m.identifier} value={m.identifier}>
-                                            {m.displayName ?? m.identifier}
-                                        </option>
-                                    ))}
-                                </select>
-                                <button
-                                    type="button"
-                                    onClick={refreshModels}
-                                    disabled={loadingModels}
-                                    className="shrink-0 rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
-                                    aria-label="Refresh models"
-                                >
-                                    <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        className={loadingModels ? 'animate-spin' : ''}
-                                    >
-                                        <polyline points="23 4 23 10 17 10" />
-                                        <polyline points="1 20 1 14 7 14" />
-                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                                    </svg>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={disconnect}
-                                    className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800"
-                                    aria-label="Disconnect"
-                                >
-                                    <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M18 6L6 18M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </>
-                        )}
-                        {statusMsg && (
-                            <span className="hidden truncate text-[12px] text-slate-400 sm:block">{statusMsg}</span>
-                        )}
-                    </div>
+    return (
+        <div className="flex h-screen overflow-hidden bg-white dark:bg-slate-950">
+            {/* Sidebar — desktop */}
+            <aside className="hidden w-64 shrink-0 lg:block">{sidebarContent}</aside>
 
-                    {/* Settings */}
-                    <div className="relative shrink-0">
+            {/* Sidebar — mobile drawer */}
+            {sidebarOpen && (
+                <div className="fixed inset-0 z-50 lg:hidden">
+                    <div className="absolute inset-0 bg-black/30" onClick={() => setSidebarOpen(false)} />
+                    <aside className="absolute left-0 top-0 h-full w-72 overflow-y-auto shadow-xl">
+                        {sidebarContent}
+                    </aside>
+                </div>
+            )}
+
+            {/* Main */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                {/* Top bar */}
+                <div className="flex shrink-0 items-center justify-between gap-2 px-2.5 py-2 sm:px-4">
+                    <div className="flex items-center gap-1">
                         <button
                             type="button"
-                            onClick={() => setSettingsOpen(s => !s)}
-                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                            aria-label="Settings"
+                            onClick={() => setSidebarOpen(true)}
+                            aria-label="Open sidebar"
+                            className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 lg:hidden"
                         >
                             <svg
-                                width="16"
-                                height="16"
                                 viewBox="0 0 24 24"
+                                className="h-5 w-5"
                                 fill="none"
                                 stroke="currentColor"
                                 strokeWidth="2"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                             >
-                                <circle cx="12" cy="12" r="3" />
-                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                                <line x1="3" y1="6" x2="21" y2="6" />
+                                <line x1="3" y1="12" x2="21" y2="12" />
+                                <line x1="3" y1="18" x2="21" y2="18" />
                             </svg>
                         </button>
-                        {settingsPanel}
-                    </div>
-                </header>
 
-                {/* Messages */}
-                <main className="flex-1 overflow-y-auto">
-                    {!activeConv || activeConv.messages.length === 0 ? (
-                        <div className="flex h-full flex-col items-center justify-center gap-6 px-4">
-                            {status !== 'connected' ? (
-                                <div className="text-center">
-                                    <p className="text-[15px] font-medium text-slate-700 dark:text-slate-200">
-                                        Connect to LM Studio
-                                    </p>
-                                    <p className="mt-1 text-[13px] text-slate-400">
-                                        Open LM Studio, load a model, then click Connect above.
-                                    </p>
-                                </div>
-                            ) : (
-                                <>
-                                    <p className="text-[15px] font-medium text-slate-700 dark:text-slate-200">
-                                        {selectedModelId
-                                            ? `Chatting with ${
-                                                  loadedModels.find(m => m.identifier === selectedModelId)
-                                                      ?.displayName ?? selectedModelId
-                                              }`
-                                            : 'Select a model above'}
-                                    </p>
-                                    <div className="flex flex-wrap justify-center gap-2">
-                                        {[
-                                            "What's 17% of 240?",
-                                            'Convert 5 miles to km',
-                                            'Base64-encode "hello world"',
-                                            'What time is it in Tokyo?',
-                                        ].map(s => (
-                                            <button
-                                                key={s}
-                                                type="button"
-                                                onClick={() => {
-                                                    setInput(s)
-                                                    inputRef.current?.focus()
-                                                }}
-                                                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[13px] text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                                            >
-                                                {s}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
-                            {activeConv.messages.map(msg => (
-                                <div
-                                    key={msg.id}
-                                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                                >
-                                    <div
-                                        className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
-                                            msg.role === 'user'
-                                                ? 'bg-blue-500 text-white'
-                                                : 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white'
-                                        }`}
-                                    >
-                                        {msg.toolCalls && msg.toolCalls.length > 0 && (
-                                            <div className="mb-2 space-y-1">
-                                                {msg.toolCalls.map((tc, i) => (
-                                                    <div
-                                                        key={i}
-                                                        className="rounded bg-slate-200 px-2 py-1 font-mono text-[11px] dark:bg-slate-700"
-                                                    >
-                                                        <span className="font-semibold">{tc.name}</span>({tc.args})
-                                                        {tc.result && (
-                                                            <span className="text-slate-500 dark:text-slate-400">
-                                                                {' '}
-                                                                → {tc.result}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                        <p className="whitespace-pre-wrap text-[14px] leading-relaxed">
-                                            {msg.content ||
-                                                (streaming && msg.role === 'assistant' ? (
-                                                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent opacity-50" />
-                                                ) : null)}
-                                        </p>
-                                        {msg.stats && (
-                                            <p className="mt-1 text-[11px] opacity-50">
-                                                {msg.stats.tokens} tokens · {msg.stats.ttft.toFixed(2)}s TTFT ·{' '}
-                                                {msg.stats.stopReason}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                            <div ref={messagesEndRef} />
-                        </div>
-                    )}
-                </main>
-
-                {/* Input */}
-                <footer className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
-                    <div className="mx-auto flex max-w-2xl items-end gap-2">
-                        <textarea
-                            ref={inputRef}
-                            value={input}
-                            onChange={e => setInput(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder={status === 'connected' ? 'Message…' : 'Connect to LM Studio first'}
-                            disabled={status !== 'connected' || !selectedModelId}
-                            rows={1}
-                            style={{ resize: 'none', maxHeight: '8rem', overflowY: 'auto' }}
-                            className="flex-1 rounded-xl border border-slate-300 bg-transparent px-3 py-2 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-40 dark:border-slate-700"
-                            onInput={e => {
-                                const el = e.currentTarget
-                                el.style.height = 'auto'
-                                el.style.height = `${Math.min(el.scrollHeight, 128)}px`
-                            }}
-                        />
-                        {streaming ? (
+                        {/* Model selector dropdown */}
+                        <div className="relative">
                             <button
                                 type="button"
-                                onClick={cancelGeneration}
-                                className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500 text-white transition hover:bg-red-600"
-                                aria-label="Stop"
+                                onClick={() => setModelMenuOpen(o => !o)}
+                                aria-haspopup="listbox"
+                                aria-expanded={modelMenuOpen}
+                                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[16px] font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                             >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                    <rect x="6" y="6" width="12" height="12" rx="2" />
-                                </svg>
-                            </button>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={sendMessage}
-                                disabled={!input.trim() || status !== 'connected' || !selectedModelId}
-                                className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500 text-white transition hover:bg-blue-600 disabled:opacity-40"
-                                aria-label="Send"
-                            >
+                                <span className={`h-1.5 w-1.5 rounded-full ${statusColor}`} />
+                                {selectedModel.name}
                                 <svg
-                                    width="16"
-                                    height="16"
                                     viewBox="0 0 24 24"
+                                    className={`h-4 w-4 text-slate-400 transition ${modelMenuOpen ? 'rotate-180' : ''}`}
                                     fill="none"
                                     stroke="currentColor"
                                     strokeWidth="2"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                 >
-                                    <line x1="22" y1="2" x2="11" y2="13" />
-                                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                    <path d="M6 9l6 6 6-6" />
                                 </svg>
+                            </button>
+                            {modelMenuOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-30" onClick={() => setModelMenuOpen(false)} />
+                                    <div className="absolute left-0 top-full z-40 mt-1 max-h-[70vh] w-72 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                                        {families.map(({ family, models }) => (
+                                            <div key={family} className="py-0.5">
+                                                <p className="px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                                                    {family}
+                                                </p>
+                                                {models.map(m => {
+                                                    const unavailable = m.device === 'webgpu' && gpuAvailable === false
+                                                    const isActive = modelId === m.id
+                                                    return (
+                                                        <button
+                                                            key={m.id}
+                                                            type="button"
+                                                            disabled={unavailable || streaming}
+                                                            onClick={() => {
+                                                                switchModel(m.id)
+                                                                setModelMenuOpen(false)
+                                                            }}
+                                                            title={unavailable ? 'Requires WebGPU' : m.modelId}
+                                                            className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition ${
+                                                                unavailable
+                                                                    ? 'cursor-not-allowed opacity-40'
+                                                                    : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                            }`}
+                                                        >
+                                                            <span className="min-w-0">
+                                                                <span className="flex items-center gap-1.5">
+                                                                    <span className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">
+                                                                        {m.name}
+                                                                    </span>
+                                                                    {m.agentic && (
+                                                                        <span
+                                                                            title="Supports tools"
+                                                                            className="text-[10px] text-emerald-500"
+                                                                        >
+                                                                            ⚒
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                                {m.note && (
+                                                                    <span className="block truncate text-[11px] text-slate-400 dark:text-slate-500">
+                                                                        {m.note}
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                            <span className="flex shrink-0 items-center gap-1.5">
+                                                                <span
+                                                                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                                                        m.device === 'webgpu'
+                                                                            ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
+                                                                            : 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400'
+                                                                    }`}
+                                                                >
+                                                                    {m.device === 'webgpu' ? 'GPU' : 'WASM'}
+                                                                </span>
+                                                                {isActive && (
+                                                                    <svg
+                                                                        viewBox="0 0 24 24"
+                                                                        className="h-4 w-4 text-slate-700 dark:text-slate-200"
+                                                                        fill="none"
+                                                                        stroke="currentColor"
+                                                                        strokeWidth="2.5"
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                    >
+                                                                        <path d="M20 6 9 17l-5-5" />
+                                                                    </svg>
+                                                                )}
+                                                            </span>
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        ))}
+                                        {gpuAvailable === false && (
+                                            <p className="px-2.5 py-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+                                                WebGPU unavailable — use a WASM model or try Chrome/Edge.
+                                            </p>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Tools pill */}
+                        {selectedModel.agentic && (
+                            <button
+                                type="button"
+                                onClick={() => setToolsEnabled(v => !v)}
+                                aria-pressed={agenticActive}
+                                title="Tools: calculator · datetime · JSON · unit converter · regex · encoder"
+                                className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-medium transition ${
+                                    agenticActive
+                                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                                        : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                                }`}
+                            >
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    className="h-3.5 w-3.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                >
+                                    <path d="M14.7 6.3a4 4 0 0 0-5.6 5.6l-6 6a2 2 0 1 0 2.8 2.8l6-6a4 4 0 0 0 5.6-5.6l-2.1 2.1-2.2-2.2 2.1-2.1z" />
+                                </svg>
+                                Tools
                             </button>
                         )}
                     </div>
-                    {settings.useTools && status === 'connected' && (
-                        <p className="mt-1.5 text-center text-[11px] text-slate-400">
-                            Tools: calculator · unit converter · base64 · JSON · regex · date/time
-                        </p>
-                    )}
-                </footer>
+
+                    <button
+                        type="button"
+                        onClick={newChat}
+                        aria-label="New chat"
+                        className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 lg:hidden"
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            className="h-5 w-5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                    </button>
+                </div>
+
+                {messages.length === 0 ? (
+                    /* Empty state: centered greeting + composer (ChatGPT style) */
+                    <div className="flex flex-1 flex-col items-center justify-center px-4 pb-16">
+                        <h2 className="mb-7 text-center text-[28px] font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+                            What can I help with?
+                        </h2>
+                        {composer}
+                        <div className="mt-4 flex flex-wrap justify-center gap-2">
+                            {suggestions.map(s => (
+                                <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => send(s)}
+                                    className="rounded-full border border-slate-200 px-3.5 py-1.5 text-[13px] text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                >
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                        {status === 'loading' && progress && (
+                            <p className="mt-4 text-[13px] text-slate-400 dark:text-slate-500">{progress}</p>
+                        )}
+                    </div>
+                ) : (
+                    <>
+                        <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-4 sm:px-6">
+                            <div className="mx-auto max-w-3xl space-y-5 py-6">
+                                {messages.map((m, i) => {
+                                    const isLast = i === messages.length - 1
+                                    if (m.role === 'tool') return <ToolRow key={i} msg={m} />
+                                    const showDots =
+                                        m.role === 'assistant' && isLast && streaming && !m.content && !m.reasoning
+                                    if (m.role === 'user') {
+                                        return (
+                                            <div key={i} className="flex justify-end">
+                                                <div className="max-w-[75%] whitespace-pre-wrap break-words rounded-3xl bg-slate-100 px-4 py-2.5 text-[15px] leading-relaxed text-slate-800 dark:bg-slate-800 dark:text-slate-100">
+                                                    {m.content}
+                                                </div>
+                                            </div>
+                                        )
+                                    }
+                                    return (
+                                        <div key={i} className="space-y-2">
+                                            {m.reasoning && (
+                                                <div className="border-l-2 border-slate-200 pl-3 text-[13px] leading-relaxed text-slate-400 dark:border-slate-700 dark:text-slate-500">
+                                                    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide">
+                                                        {m.content ? 'Reasoning' : 'Thinking…'}
+                                                    </span>
+                                                    <span className="whitespace-pre-wrap break-words">
+                                                        {m.reasoning}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {(m.content || showDots) &&
+                                                (showDots ? (
+                                                    <span className="inline-flex gap-1 py-1">
+                                                        <span className="h-2 w-2 animate-bounce rounded-full bg-slate-300 [animation-delay:-0.2s] dark:bg-slate-600" />
+                                                        <span className="h-2 w-2 animate-bounce rounded-full bg-slate-300 [animation-delay:-0.1s] dark:bg-slate-600" />
+                                                        <span className="h-2 w-2 animate-bounce rounded-full bg-slate-300 dark:bg-slate-600" />
+                                                    </span>
+                                                ) : (
+                                                    <div className="whitespace-pre-wrap break-words text-[15px] leading-7 text-slate-800 dark:text-slate-100">
+                                                        {m.content}
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    )
+                                })}
+                                {status === 'loading' && progress && (
+                                    <p className="text-center text-[13px] text-slate-400 dark:text-slate-500">
+                                        {progress}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="shrink-0 px-4 pb-3 pt-1 sm:px-6">{composer}</div>
+                    </>
+                )}
+            </div>
+        </div>
+    )
+}
+
+// A single tool call + result row in the transcript.
+function ToolRow({ msg }: { msg: Msg }) {
+    const [open, setOpen] = useState(false)
+    let argsPretty = msg.toolArgs || ''
+    try {
+        argsPretty = JSON.stringify(JSON.parse(msg.toolArgs || '{}'))
+    } catch {
+        /* keep raw */
+    }
+    const pending = msg.toolResult === undefined
+    return (
+        <div className="flex justify-start">
+            <div className="max-w-[85%]">
+                <button
+                    type="button"
+                    onClick={() => setOpen(o => !o)}
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-left text-[13px] text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                    <span
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                            pending ? 'animate-pulse bg-amber-400' : 'bg-emerald-500'
+                        }`}
+                    />
+                    <svg
+                        viewBox="0 0 24 24"
+                        className="h-3.5 w-3.5 shrink-0 text-slate-400"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    >
+                        <path d="M14.7 6.3a4 4 0 0 0-5.6 5.6l-6 6a2 2 0 1 0 2.8 2.8l6-6a4 4 0 0 0 5.6-5.6l-2.1 2.1-2.2-2.2 2.1-2.1z" />
+                    </svg>
+                    <span className="font-mono">{msg.toolName}</span>
+                    <span className="truncate text-slate-400 dark:text-slate-500">{argsPretty}</span>
+                    {pending && <span className="text-slate-400">· running…</span>}
+                </button>
+                {open && !pending && (
+                    <pre className="mt-1 max-h-48 overflow-auto rounded-lg bg-slate-900 px-3 py-2 text-[12px] leading-relaxed text-slate-100 dark:bg-black">
+                        {msg.toolResult}
+                    </pre>
+                )}
             </div>
         </div>
     )
