@@ -30,6 +30,8 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
+    "@langchain/core": "^1.2.0",
+    "@langchain/langgraph": "^1.4.4",
     "@types/node": "20.4.9",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

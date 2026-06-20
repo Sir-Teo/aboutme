@@ -1,0 +1,94 @@
+// EmbeddingGemma feature-extraction worker. One shared embedder powers semantic
+// RAG, long-term memory, and the semantic-search tab — all on-device via WebGPU.
+//
+// EmbeddingGemma expects task-specific prompt prefixes (asymmetric retrieval):
+// queries and documents are embedded with different instructions. We apply them
+// here so callers just say which kind of text they're embedding.
+
+type EmbedKind = 'query' | 'document'
+
+type EmbedRequest =
+    | { type: 'warm'; modelId: string; dtype: string }
+    | { type: 'embed'; id: string; modelId: string; dtype: string; texts: string[]; kind: EmbedKind; dims: number }
+
+type EmbedResponse =
+    | { type: 'progress'; progress: string }
+    | { type: 'ready' }
+    | { type: 'embeddings'; id: string; vectors: number[][] }
+    | { type: 'error'; id?: string; message: string }
+
+const workerSelf = self as unknown as {
+    postMessage(message: EmbedResponse): void
+    addEventListener(type: 'message', listener: (event: MessageEvent<EmbedRequest>) => void): void
+}
+
+let extractor: any = null
+let loading: Promise<any> | null = null
+
+function post(message: EmbedResponse) {
+    workerSelf.postMessage(message)
+}
+
+// Official EmbeddingGemma retrieval prompts.
+function withPrefix(text: string, kind: EmbedKind): string {
+    return kind === 'query' ? `task: search result | query: ${text}` : `title: none | text: ${text}`
+}
+
+function truncateNormalize(vector: number[], dims: number): number[] {
+    const sliced = vector.slice(0, dims)
+    let norm = 0
+    for (const v of sliced) norm += v * v
+    norm = Math.sqrt(norm) || 1
+    return sliced.map(v => v / norm)
+}
+
+async function load(modelId: string, dtype: string) {
+    if (extractor) return extractor
+    if (loading) return loading
+    loading = (async () => {
+        const { env, pipeline } = await import('@huggingface/transformers')
+        env.allowLocalModels = false
+        env.useBrowserCache = true
+        post({ type: 'progress', progress: 'Loading embedder…' })
+        extractor = await pipeline('feature-extraction', modelId, {
+            dtype: dtype as any,
+            device: 'webgpu',
+            progress_callback: (p: any) => {
+                if (p?.status === 'progress' && typeof p.progress === 'number') {
+                    post({ type: 'progress', progress: `Downloading embedder… ${Math.round(p.progress)}%` })
+                }
+            },
+        })
+        post({ type: 'ready' })
+        return extractor
+    })()
+    try {
+        return await loading
+    } finally {
+        loading = null
+    }
+}
+
+async function embed(request: Extract<EmbedRequest, { type: 'embed' }>) {
+    try {
+        const model = await load(request.modelId, request.dtype)
+        const inputs = request.texts.map(t => withPrefix(t, request.kind))
+        const output = await model(inputs, { pooling: 'mean', normalize: true })
+        const list: number[][] = output.tolist()
+        const vectors = list.map(v => truncateNormalize(v, request.dims))
+        post({ type: 'embeddings', id: request.id, vectors })
+    } catch (error) {
+        post({ type: 'error', id: request.id, message: error instanceof Error ? error.message : String(error) })
+    }
+}
+
+workerSelf.addEventListener('message', event => {
+    const request = event.data
+    if (request.type === 'warm') {
+        void load(request.modelId, request.dtype).catch(() => undefined)
+        return
+    }
+    if (request.type === 'embed') void embed(request)
+})
+
+export {}

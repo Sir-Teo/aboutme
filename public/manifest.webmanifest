@@ -1,0 +1,18 @@
+{
+    "name": "Ask AI — Teo Zeng Playground",
+    "short_name": "Ask AI",
+    "description": "An in-browser AI playground: agentic chat, voice, vision and semantic search running entirely on-device with WebGPU.",
+    "start_url": "/playground",
+    "scope": "/playground",
+    "display": "standalone",
+    "background_color": "#0f172a",
+    "theme_color": "#0f172a",
+    "icons": [
+        {
+            "src": "/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ]
+}
