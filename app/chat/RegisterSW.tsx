@@ -2,9 +2,8 @@
 
 import { useEffect } from 'react'
 
-// Register the playground service worker (scope /playground) so the app shell
-// works offline after the first visit. Scoped to /playground to leave the rest
-// of the site (homepage, /chat) alone.
+// Register the playground service worker (scope /chat) so the app shell works
+// offline after the first visit. Scoped to /chat to leave the homepage alone.
 export default function RegisterSW() {
     useEffect(() => {
         if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
@@ -20,7 +19,7 @@ export default function RegisterSW() {
             return
         }
 
-        navigator.serviceWorker.register('/sw.js', { scope: '/playground' }).catch(() => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/chat' }).catch(() => {
             /* offline support is best-effort */
         })
     }, [])

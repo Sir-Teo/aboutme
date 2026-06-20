@@ -1,4 +1,4 @@
-// Service worker for the /playground route — offline support, deploy-safe.
+// Service worker for the /chat playground — offline support, deploy-safe.
 //
 // Strategy is intentionally conservative so a new deploy is never masked by a
 // stale cache:
@@ -55,7 +55,7 @@ self.addEventListener('fetch', event => {
                     caches.open(CACHE).then(c => c.put(request, copy))
                     return res
                 })
-                .catch(() => caches.match(request).then(hit => hit || caches.match('/playground')))
+                .catch(() => caches.match(request).then(hit => hit || caches.match('/chat')))
         )
     }
 })
