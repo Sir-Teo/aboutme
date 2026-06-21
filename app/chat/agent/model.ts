@@ -5,7 +5,10 @@
 import type { ChatMessage } from './runtime'
 import type { Tool } from './tools'
 
-export type LLM = (messages: ChatMessage[], opts?: { onChunk?: (chunk: string) => void }) => Promise<string>
+export type LLM = (
+    messages: ChatMessage[],
+    opts?: { onChunk?: (chunk: string) => void; json?: boolean }
+) => Promise<string>
 
 export type ToolDecision = { name: string; args: Record<string, any> } | null
 

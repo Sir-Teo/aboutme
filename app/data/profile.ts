@@ -43,11 +43,14 @@ Skills: machine learning (predictive modeling, NLP, time series, causal inferenc
 
 Publications: co-author on several peer-reviewed papers in medical AI and crystallography, including HCC recurrence prediction (Liver Transplantation), acute pancreatitis severity from CT (Radiology Advances), and deep residual networks for crystallography (Acta Crystallographica Section D).
 
-Selected projects:
+Selected projects (github.com/Sir-Teo):
 - An agentic legal consultant (2026-present) for companies assessing overseas export requirements, with hybrid retrieval and citation-grounded compliance reports.
-- Web-Katrain (2025): a browser-based Go (Weiqi) app using TensorFlow.js and a custom Monte Carlo Tree Search engine for real-time move analysis and game review.
+- Web-KaTrain (2025): a browser-based Go (Weiqi) app using TensorFlow.js and a custom Monte Carlo Tree Search engine for real-time move analysis and game review.
+- web-chess: a polished chess app in React/TypeScript/Vite. MusicBART: music generation with BART. json2vec: nested data into neural representations with typed schemas. resonet: crystallography resolution prediction.
 
-Interests: traveling, running, basketball and other sports, research, and video games.`
+Writing: Teo keeps a technical research notebook at sir-teo.github.io/blogs with 300+ notes across ML, CS, AI systems, statistics, software engineering, applied math, quantitative finance, and more.
+
+Interests: traveling, running, basketball and other sports, the board games Go (Weiqi) and chess, research, and video games.`
 
 export const links: LinkItem[] = [
     { label: 'YouTube', href: 'https://www.youtube.com/@teozeng3999', icon: '/icons/youtube.svg', color: '#FF0000' },

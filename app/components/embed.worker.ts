@@ -10,11 +10,13 @@ type EmbedKind = 'query' | 'document'
 type EmbedRequest =
     | { type: 'warm'; modelId: string; dtype: string }
     | { type: 'embed'; id: string; modelId: string; dtype: string; texts: string[]; kind: EmbedKind; dims: number }
+    | { type: 'rerank'; id: string; modelId: string; dtype: string; query: string; passages: string[] }
 
 type EmbedResponse =
     | { type: 'progress'; progress: string }
     | { type: 'ready' }
     | { type: 'embeddings'; id: string; vectors: number[][] }
+    | { type: 'scores'; id: string; scores: number[] }
     | { type: 'error'; id?: string; message: string }
 
 const workerSelf = self as unknown as {
@@ -82,6 +84,56 @@ async function embed(request: Extract<EmbedRequest, { type: 'embed' }>) {
     }
 }
 
+// ──────────────────────────────── reranking ──────────────────────────────────
+// Two-stage RAG: a cross-encoder re-scores [query, passage] pairs far more
+// accurately than the bi-encoder's cosine alone. Loaded lazily, separate model.
+let reranker: { tokenizer: any; model: any } | null = null
+let rerankLoading: Promise<any> | null = null
+
+async function loadReranker(modelId: string, dtype: string) {
+    if (reranker) return reranker
+    if (rerankLoading) return rerankLoading
+    rerankLoading = (async () => {
+        const { env, AutoTokenizer, AutoModelForSequenceClassification } = await import('@huggingface/transformers')
+        env.allowLocalModels = false
+        env.useBrowserCache = true
+        post({ type: 'progress', progress: 'Loading reranker…' })
+        const tokenizer = await AutoTokenizer.from_pretrained(modelId)
+        const model = await AutoModelForSequenceClassification.from_pretrained(modelId, {
+            dtype: dtype as any,
+            device: 'webgpu',
+            progress_callback: (p: any) => {
+                if (p?.status === 'progress' && typeof p.progress === 'number')
+                    post({ type: 'progress', progress: `Downloading reranker… ${Math.round(p.progress)}%` })
+            },
+        })
+        reranker = { tokenizer, model }
+        return reranker
+    })()
+    try {
+        return await rerankLoading
+    } finally {
+        rerankLoading = null
+    }
+}
+
+function sigmoid(x: number): number {
+    return 1 / (1 + Math.exp(-x))
+}
+
+async function rerank(request: Extract<EmbedRequest, { type: 'rerank' }>) {
+    try {
+        const { tokenizer, model } = await loadReranker(request.modelId, request.dtype)
+        const queries = request.passages.map(() => request.query)
+        const inputs = tokenizer(queries, { text_pair: request.passages, padding: true, truncation: true })
+        const { logits } = await model(inputs)
+        const raw: number[] = logits.tolist().map((row: number[]) => row[0])
+        post({ type: 'scores', id: request.id, scores: raw.map(sigmoid) })
+    } catch (error) {
+        post({ type: 'error', id: request.id, message: error instanceof Error ? error.message : String(error) })
+    }
+}
+
 workerSelf.addEventListener('message', event => {
     const request = event.data
     if (request.type === 'warm') {
@@ -89,6 +141,7 @@ workerSelf.addEventListener('message', event => {
         return
     }
     if (request.type === 'embed') void embed(request)
+    else if (request.type === 'rerank') void rerank(request)
 })
 
 export {}

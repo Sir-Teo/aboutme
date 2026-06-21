@@ -52,7 +52,9 @@ export function buildAgentGraph(params: RunAgentParams) {
 
     async function plan(state: State): Promise<Partial<State>> {
         if (state.steps >= MAX_TOOL_STEPS) return { pending: null }
-        const reply = await llm(planMessages(tools, history, input, state.observations))
+        // Ask for strict JSON: on runtimes that support it (WebLLM/XGrammar) the
+        // tool decision is grammar-constrained to valid JSON; elsewhere it's a hint.
+        const reply = await llm(planMessages(tools, history, input, state.observations), { json: true })
         const decision = parseDecision(reply)
         // Reject hallucinated tool names — treat as "done planning".
         if (decision && !tools.some(t => t.name === decision.name)) {

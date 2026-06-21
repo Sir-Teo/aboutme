@@ -1,12 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import AgentChat from './AgentChat'
 import SemanticSearch from './modules/SemanticSearch'
 import VoiceChat from './modules/VoiceChat'
 import VisionChat from './modules/VisionChat'
+import VisionLab from './modules/VisionLab'
+import ImageGen from './modules/ImageGen'
+import DocsRag from './modules/DocsRag'
+import MultiAgent from './modules/MultiAgent'
+import McpLab from './modules/McpLab'
+import ModelManager from './ModelManager'
 import { chatEngines, engineById, DEFAULT_ENGINE_ID } from './engines'
+import { chromeAIAvailable } from './agent/chromeai'
 
 // The playground is a registry of self-contained "experiments", each showcasing
 // something an in-browser model can do with no server. New capabilities (voice,
@@ -31,37 +38,84 @@ const MODULES: PlaygroundModule[] = [
         title: 'Agent chat',
         blurb: 'A profile-grounded agent running entirely in your browser — semantic RAG, tool-calling and persistent memory.',
         status: 'live',
-        models: 'LFM2.5 & Gemma 3 · 270M–1.2B',
+        models: 'Gemma · Liquid · Llama · Qwen3 · Phi · Gemini Nano',
     },
     {
         id: 'voice',
-        title: 'Voice chat',
-        blurb: 'Speak a question and hear the answer spoken back — the language model runs on-device.',
+        title: 'Voice agent',
+        blurb: 'A full on-device voice loop — Silero VAD turn-taking, Whisper speech-to-text, an LFM2.5 answer and Kokoro speech, all in your browser.',
         status: 'live',
-        models: 'Browser STT · LFM2.5',
+        models: 'Silero VAD · Whisper · LFM2.5 · Kokoro',
     },
     {
         id: 'vision',
         title: 'Vision chat',
         blurb: 'Drop in an image or use your webcam and ask about it — captioning, visual Q&A and OCR on-device.',
         status: 'live',
-        models: 'Gemma 4 E2B',
+        models: 'Gemma 4 · LFM2-VL',
+    },
+    {
+        id: 'visionlab',
+        title: 'Vision lab',
+        blurb: 'Pixel-level computer vision — background removal, depth maps and object detection, all in your browser.',
+        status: 'live',
+        models: 'RMBG · Depth Anything v2 · DETR',
+    },
+    {
+        id: 'imagegen',
+        title: 'Image generation',
+        blurb: 'Type a prompt and generate an image on-device with SD-Turbo. Experimental and heavy, but nothing leaves your machine.',
+        status: 'live',
+        models: 'SD-Turbo · onnxruntime-web',
+    },
+    {
+        id: 'multiagent',
+        title: 'Multi-agent',
+        blurb: 'A supervisor routes each turn to a specialist — researcher, actor or generalist — and shows its decision. A LangGraph multi-agent system in your browser.',
+        status: 'live',
+        models: 'LangGraph supervisor · LFM2.5',
+    },
+    {
+        id: 'mcp',
+        title: 'MCP tools',
+        blurb: 'Connect the browser agent to a live Model Context Protocol server over HTTP, list its tools and call them — the same toolbox cloud agents use.',
+        status: 'live',
+        models: 'MCP · Streamable HTTP',
+    },
+    {
+        id: 'docs',
+        title: 'Chat with a doc',
+        blurb: 'Drop in a PDF or text file and ask questions answered only from its contents — parsed, embedded, reranked and answered on-device.',
+        status: 'live',
+        models: 'EmbeddingGemma · BGE reranker · LFM2.5',
     },
     {
         id: 'search',
         title: 'Semantic search',
         blurb: 'Search the site by meaning, not keywords — embedded and indexed in your browser.',
         status: 'live',
-        models: 'EmbeddingGemma',
+        models: 'EmbeddingGemma · two-stage rerank',
     },
 ]
 
 export default function Playground() {
     const [active, setActive] = useState<string>('chat')
     const [engineId, setEngineId] = useState<string>(DEFAULT_ENGINE_ID)
+    const [chromeOk, setChromeOk] = useState(false)
     const current = MODULES.find(m => m.id === active) ?? MODULES[0]
     const engine = engineById(engineId)
-    const engines = chatEngines()
+
+    // Only offer Chrome's built-in engine when the Prompt API is actually present.
+    useEffect(() => {
+        let alive = true
+        chromeAIAvailable().then(ok => alive && setChromeOk(ok))
+        return () => {
+            alive = false
+        }
+    }, [])
+
+    // The chat-brain choices (Chrome's built-in engine only when it's available).
+    const usableEngines = useMemo(() => chatEngines().filter(e => e.runtime !== 'chrome' || chromeOk), [chromeOk])
 
     return (
         <main className="mx-auto max-w-2xl px-6 py-16 sm:py-24">
@@ -113,34 +167,33 @@ export default function Playground() {
                         </p>
                         <p className="mt-1 text-[12px] text-slate-400">{current.models}</p>
                     </div>
-                    {current.id === 'chat' && (
-                        // Model switcher: run the same chat on Gemma 4 vs a Liquid AI
-                        // specialist. Comparing engines is part of the playground.
-                        <label className="shrink-0 text-[12px] text-slate-400">
-                            <span className="sr-only">Model</span>
-                            <select
-                                value={engineId}
-                                onChange={e => setEngineId(e.target.value)}
-                                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-600 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-                            >
-                                {engines.map(e => (
-                                    <option key={e.id} value={e.id}>
-                                        {e.label} ({e.sizeLabel})
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+                    {(current.id === 'chat' || current.id === 'multiagent') && (
+                        // Model manager: pick a model to download, see what's cached
+                        // on-device, and which one is loaded right now.
+                        <div className="shrink-0">
+                            <ModelManager engines={usableEngines} activeId={engineId} onPick={setEngineId} />
+                        </div>
                     )}
                 </div>
 
                 {current.id === 'chat' ? (
                     <AgentChat engine={engine} />
+                ) : current.id === 'multiagent' ? (
+                    <MultiAgent engine={engine} />
+                ) : current.id === 'mcp' ? (
+                    <McpLab />
                 ) : current.id === 'search' ? (
                     <SemanticSearch />
                 ) : current.id === 'voice' ? (
                     <VoiceChat />
                 ) : current.id === 'vision' ? (
                     <VisionChat />
+                ) : current.id === 'visionlab' ? (
+                    <VisionLab />
+                ) : current.id === 'imagegen' ? (
+                    <ImageGen />
+                ) : current.id === 'docs' ? (
+                    <DocsRag />
                 ) : (
                     <div className="rounded-xl border border-dashed border-slate-200 px-5 py-10 text-center dark:border-slate-700">
                         <p className="text-[14px] text-slate-500 dark:text-slate-400">

@@ -8,7 +8,7 @@
 import { KNOWLEDGE, type KnowledgeChunk } from '../../data/knowledge'
 import { EMBEDDING_ENGINE } from '../engines'
 import { VectorStore } from '../../lib/vectorStore'
-import { embed, embedOne } from './embeddings'
+import { embed, embedOne, rerank } from './embeddings'
 
 type ChunkMeta = { topic: string; text: string }
 
@@ -64,9 +64,29 @@ export async function retrieveSemantic(query: string, k = 5): Promise<RetrievedC
     }))
 }
 
-// Convenience: a ready-to-inject grounding block.
+// Two-stage retrieval: pull a wide candidate set with the bi-encoder, then let
+// the cross-encoder reranker re-score them for sharper grounding. Falls back to
+// the first-stage order if the reranker isn't available.
+export async function retrieveReranked(query: string, k = 5, candidates = 20): Promise<RetrievedChunk[]> {
+    const pool = await retrieveSemantic(query, candidates)
+    if (pool.length <= k) return pool
+    try {
+        const scores = await rerank(
+            query,
+            pool.map(c => c.text)
+        )
+        return pool
+            .map((c, i) => ({ ...c, score: scores[i] ?? c.score }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, k)
+    } catch {
+        return pool.slice(0, k)
+    }
+}
+
+// Convenience: a ready-to-inject grounding block (two-stage retrieve → rerank).
 export async function groundingBlock(query: string, k = 5): Promise<string> {
-    const chunks = await retrieveSemantic(query, k)
+    const chunks = await retrieveReranked(query, k)
     return chunks.map(c => `- ${c.text}`).join('\n')
 }
 

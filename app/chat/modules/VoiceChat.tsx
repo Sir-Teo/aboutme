@@ -3,52 +3,60 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import GpuGate from '../GpuGate'
 import { profile } from '../../data/profile'
-import { engineById } from '../engines'
+import { engineById, STT_ENGINES } from '../engines'
 import { generate, warm, disposeModel } from '../agent/runtime'
 import { groundingBlock, warmIndex } from '../agent/retrieval'
 import { warmEmbedder } from '../agent/embeddings'
+import { warmSpeech, transcribe, speak, playPcm, onSttProgress, onTtsProgress, disposeSpeech } from '../agent/speech'
 
-// Voice tab: ask by speaking, hear the answer spoken back.
-//   • Speech-to-text uses the browser's built-in SpeechRecognition.
-//   • The answer is generated on-device by a Liquid LFM2.5 model (WebGPU).
-//   • The reply is read aloud with the browser's built-in SpeechSynthesis.
-// (LFM2.5-Audio / Gemma-4 audio aren't loadable via transformers.js 4.2.0 yet,
-// so STT uses the native recognizer; the language model stays fully on-device.)
+// Real-time voice agent — a fully on-device speech loop:
+//   • Turn-taking: Silero VAD (@ricky0123/vad-web) detects when you start/stop.
+//   • Speech-to-text: Whisper / Moonshine (transformers.js, WebGPU).
+//   • Answer: a Liquid LFM2.5 model, grounded in the profile RAG (WebGPU).
+//   • Text-to-speech: Kokoro-82M (kokoro-js, WebGPU), played via Web Audio.
+// Nothing leaves the device — mic audio, transcript and reply all stay local.
 
 const ANSWER_ENGINE = engineById('lfm2.5-1.2b')
-
-function speak(text: string) {
-    try {
-        const synth = window.speechSynthesis
-        if (!synth) return
-        synth.cancel()
-        synth.speak(new SpeechSynthesisUtterance(text))
-    } catch {
-        /* no speech synthesis available */
-    }
-}
-
-function getRecognition(): any {
-    if (typeof window === 'undefined') return null
-    const Ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    return Ctor ? new Ctor() : null
-}
+type Mode = 'idle' | 'loading' | 'listening' | 'thinking' | 'speaking'
 
 function VoiceInner() {
-    const [listening, setListening] = useState(false)
+    const [mode, setMode] = useState<Mode>('idle')
     const [transcript, setTranscript] = useState('')
     const [answer, setAnswer] = useState('')
-    const [progress, setProgress] = useState('')
-    const [busy, setBusy] = useState(false)
-    const [supported, setSupported] = useState(true)
-    const recognitionRef = useRef<any>(null)
+    const [status, setStatus] = useState('')
+    const [sttId, setSttId] = useState(STT_ENGINES[0].id)
+    const [error, setError] = useState('')
+    const vadRef = useRef<any>(null)
+    const activeRef = useRef(false) // user wants the loop running
+    const busyRef = useRef(false) // a turn is being processed
+    const sttIdRef = useRef(sttId)
+    sttIdRef.current = sttId
 
-    const answerQuestion = useCallback(async (question: string) => {
-        if (!question) {
-            setBusy(false)
-            return
+    // Warm the answer model + retrieval + speech models up front.
+    useEffect(() => {
+        warmEmbedder()
+        warmIndex()
+        warm(ANSWER_ENGINE)
+        warmSpeech(sttIdRef.current)
+        const off1 = onSttProgress(setStatus)
+        const off2 = onTtsProgress(setStatus)
+        return () => {
+            off1()
+            off2()
+            activeRef.current = false
+            try {
+                vadRef.current?.pause?.()
+                void vadRef.current?.destroy?.()
+            } catch {
+                /* already gone */
+            }
+            disposeModel()
+            disposeSpeech()
         }
-        setProgress('Thinking…')
+    }, [])
+
+    // Answer one transcribed question: grounded, on-device, spoken back.
+    const answerQuestion = useCallback(async (question: string) => {
         const grounding = await groundingBlock(question, 5)
         const system = [
             `You are a friendly assistant on ${profile.name}'s website. Refer to him as Teo.`,
@@ -57,110 +65,158 @@ function VoiceInner() {
             grounding,
         ].join('\n')
         let full = ''
-        try {
-            await generate(
-                ANSWER_ENGINE,
-                [
-                    { role: 'system', content: system },
-                    { role: 'user', content: question },
-                ],
-                {
-                    onProgress: setProgress,
-                    onReady: () => setProgress(''),
-                    onChunk: chunk => {
-                        full += chunk
-                        setAnswer(full)
-                    },
-                }
-            )
-            speak(full)
-        } finally {
-            setBusy(false)
-            setProgress('')
-        }
+        await generate(
+            ANSWER_ENGINE,
+            [
+                { role: 'system', content: system },
+                { role: 'user', content: question },
+            ],
+            {
+                onProgress: setStatus,
+                onReady: () => setStatus(''),
+                onChunk: chunk => {
+                    full += chunk
+                    setAnswer(full)
+                },
+            }
+        )
+        return full
     }, [])
 
-    useEffect(() => {
-        warmEmbedder()
-        warmIndex()
-        warm(ANSWER_ENGINE)
-        const rec = getRecognition()
-        if (!rec) {
-            setSupported(false)
-            return
-        }
-        rec.lang = 'en-US'
-        rec.interimResults = false
-        rec.maxAlternatives = 1
-        rec.onresult = (event: any) => {
-            const text = event.results?.[0]?.[0]?.transcript ?? ''
-            setTranscript(text)
-            setBusy(true)
-            void answerQuestion(text)
-        }
-        rec.onerror = () => {
-            setListening(false)
-            setProgress('Could not hear you — try again.')
-        }
-        rec.onend = () => setListening(false)
-        recognitionRef.current = rec
-        return () => {
+    // The turn pipeline: STT → answer → TTS. VAD is paused while we process so the
+    // model's own voice can't trigger another turn (no feedback loop).
+    const handleUtterance = useCallback(
+        async (audio: Float32Array) => {
+            if (busyRef.current) return
+            busyRef.current = true
             try {
-                rec.stop()
-            } catch {
-                /* already stopped */
+                vadRef.current?.pause?.()
+                setMode('thinking')
+                setAnswer('')
+                setStatus('Transcribing…')
+                const text = await transcribe(audio, sttIdRef.current)
+                if (!text) {
+                    setStatus('')
+                    return
+                }
+                setTranscript(text)
+                setStatus('Thinking…')
+                const reply = await answerQuestion(text)
+                setMode('speaking')
+                setStatus('Speaking…')
+                if (reply.trim()) {
+                    const { audio: wav, samplingRate } = await speak(reply)
+                    await playPcm(wav, samplingRate)
+                }
+            } catch (e) {
+                setError(e instanceof Error ? e.message : 'Voice pipeline error.')
+            } finally {
+                busyRef.current = false
+                setStatus('')
+                // Resume listening if the user hasn't stopped the loop.
+                if (activeRef.current && vadRef.current) {
+                    try {
+                        await vadRef.current.start()
+                        setMode('listening')
+                    } catch {
+                        /* mic gone */
+                    }
+                } else {
+                    setMode('idle')
+                }
             }
-            // Free the answer model's GPU memory when leaving the voice tab.
-            disposeModel()
-        }
-    }, [answerQuestion])
+        },
+        [answerQuestion]
+    )
 
-    function toggle() {
-        const rec = recognitionRef.current
-        if (!rec) return
-        if (listening) {
-            rec.stop()
-            setListening(false)
-            return
-        }
-        setTranscript('')
-        setAnswer('')
-        setProgress('')
+    const start = useCallback(async () => {
+        setError('')
+        activeRef.current = true
+        setMode('loading')
+        setStatus('Starting microphone…')
         try {
-            rec.start()
-            setListening(true)
-        } catch {
-            /* start() throws if already running */
+            if (!vadRef.current) {
+                const { MicVAD } = await import('@ricky0123/vad-web')
+                vadRef.current = await MicVAD.new({
+                    model: 'v5',
+                    onSpeechStart: () => setMode('listening'),
+                    onSpeechEnd: (audio: Float32Array) => void handleUtterance(audio),
+                })
+            }
+            await vadRef.current.start()
+            setMode('listening')
+            setStatus('')
+        } catch (e) {
+            activeRef.current = false
+            setMode('idle')
+            setError(e instanceof Error ? e.message : 'Microphone access denied.')
         }
-    }
+    }, [handleUtterance])
 
-    if (!supported) {
-        return (
-            <div className="rounded-xl bg-white p-5 text-[14px] text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:ring-slate-800">
-                This browser doesn’t support speech recognition. Try Chrome or Edge.
-            </div>
-        )
-    }
+    const stop = useCallback(() => {
+        activeRef.current = false
+        try {
+            vadRef.current?.pause?.()
+        } catch {
+            /* already paused */
+        }
+        setMode('idle')
+        setStatus('')
+    }, [])
+
+    const running = mode === 'listening' || mode === 'thinking' || mode === 'speaking' || mode === 'loading'
+
+    const label =
+        mode === 'loading'
+            ? status || 'Loading…'
+            : mode === 'listening'
+            ? 'Listening… speak, then pause'
+            : mode === 'thinking'
+            ? status || 'Thinking…'
+            : mode === 'speaking'
+            ? 'Speaking…'
+            : 'Tap to start the conversation'
 
     return (
         <div className="rounded-xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[12px] text-slate-400">
-                Browser speech-to-text · {ANSWER_ENGINE.label} answers on-device · spoken reply
-            </p>
+            <div className="flex items-center justify-between gap-3">
+                <p className="text-[12px] text-slate-400">
+                    Silero VAD · {STT_ENGINES.find(s => s.id === sttId)?.label} · {ANSWER_ENGINE.label} · Kokoro TTS —
+                    all on-device
+                </p>
+                <label className="shrink-0 text-[12px] text-slate-400">
+                    <span className="sr-only">Speech-to-text model</span>
+                    <select
+                        value={sttId}
+                        onChange={e => setSttId(e.target.value)}
+                        disabled={running}
+                        className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-600 outline-none disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                    >
+                        {STT_ENGINES.map(s => (
+                            <option key={s.id} value={s.id}>
+                                {s.label}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+            </div>
 
             <div className="mt-4 flex flex-col items-center gap-3 py-4">
                 <button
                     type="button"
-                    onClick={toggle}
-                    disabled={busy}
-                    className={`grid h-16 w-16 place-items-center rounded-full text-white transition disabled:opacity-40 ${
-                        listening
+                    onClick={running ? stop : start}
+                    className={`grid h-16 w-16 place-items-center rounded-full text-white transition ${
+                        mode === 'listening'
                             ? 'animate-pulse bg-rose-500 hover:bg-rose-600'
+                            : mode === 'speaking'
+                            ? 'bg-emerald-500'
+                            : mode === 'thinking' || mode === 'loading'
+                            ? 'bg-amber-500'
                             : 'bg-slate-900 dark:bg-slate-100 dark:text-slate-900'
                     }`}
-                    aria-label={listening ? 'Stop listening' : 'Start listening'}
+                    aria-label={running ? 'Stop conversation' : 'Start conversation'}
                 >
-                    {listening ? (
+                    {running ? (
                         <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor" aria-hidden>
                             <rect x="7" y="7" width="10" height="10" rx="1.5" />
                         </svg>
@@ -178,10 +234,10 @@ function VoiceInner() {
                         </svg>
                     )}
                 </button>
-                <p className="text-[13px] text-slate-400">
-                    {listening ? 'Listening… tap to stop' : busy ? progress || 'Working…' : 'Tap to speak'}
-                </p>
+                <p className="text-[13px] text-slate-400">{label}</p>
             </div>
+
+            {error && <p className="mt-1 text-center text-[13px] text-rose-500">{error}</p>}
 
             {transcript && (
                 <p className="mt-1 text-right">
@@ -197,7 +253,9 @@ function VoiceInner() {
                     </span>
                     <button
                         type="button"
-                        onClick={() => speak(answer)}
+                        onClick={() =>
+                            void speak(answer).then(({ audio, samplingRate }) => playPcm(audio, samplingRate))
+                        }
                         title="Replay"
                         className="mt-1 shrink-0 text-[12px] text-slate-400 transition hover:text-slate-600"
                     >

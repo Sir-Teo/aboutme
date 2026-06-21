@@ -1,26 +1,19 @@
-// A small promise/streaming wrapper around model.worker.ts.
+// The LLM dispatcher: one stable surface (warm / generate / stop / dispose) that
+// routes each engine to its runtime —
+//   • 'transformers' → the model.worker.ts WebGPU worker (this file owns it)
+//   • 'webllm'       → ./webllm.ts (MLC engine in its own worker)
+//   • 'chrome'       → ./chromeai.ts (browser Prompt API, no worker)
 //
-// Both the plain chat UI and (later) the LangGraph model adapter talk to the
-// model through this one object, so there is a single place that owns the
-// Worker lifecycle, request ids, warm-up and graceful stop.
+// Callers (AgentChat, VoiceChat, the LangGraph model adapter) only ever import
+// from here, so adding a runtime never touches the UI.
 
 import type { Engine } from '../engines'
+import type { ChatMessage, ChatRole, ToolSpec, GenerateHandlers } from './llmTypes'
+import * as webllm from './webllm'
+import * as chromeai from './chromeai'
 
-export type ChatRole = 'system' | 'user' | 'assistant' | 'tool'
-export type ChatMessage = { role: ChatRole; content: string }
-
-export type ToolSpec = {
-    name: string
-    description: string
-    parameters: Record<string, unknown>
-}
-
-export type GenerateHandlers = {
-    onChunk?: (chunk: string) => void
-    onProgress?: (progress: string) => void
-    onReady?: () => void
-    signal?: AbortSignal
-}
+// Re-export the shared types so existing imports (`from './runtime'`) keep working.
+export type { ChatMessage, ChatRole, ToolSpec, GenerateHandlers }
 
 type EngineConfig = {
     id: string
@@ -36,8 +29,29 @@ type WorkerResponse =
     | { type: 'done'; id: string; text: string }
     | { type: 'error'; id?: string; message: string }
 
+// ───────────────────────────── transformers.js worker ────────────────────────
+
 let worker: Worker | null = null
 let nextId = 0
+
+// Which engine is currently resident (in GPU memory) right now, across runtimes.
+// Drives the model manager's "Loaded" indicator. One model is resident at a time.
+let loadedEngineId: string | null = null
+const loadedListeners = new Set<(id: string | null) => void>()
+function setLoaded(id: string | null) {
+    if (loadedEngineId === id) return
+    loadedEngineId = id
+    loadedListeners.forEach(fn => fn(id))
+}
+export function loadedEngineId_(): string | null {
+    return loadedEngineId
+}
+export function onLoadedChange(fn: (id: string | null) => void): () => void {
+    loadedListeners.add(fn)
+    return () => loadedListeners.delete(fn)
+}
+// WebLLM reports its own load/unload; mirror it into the shared loaded state.
+webllm.onLoaded(id => setLoaded(id))
 
 type Pending = {
     resolve: (text: string) => void
@@ -68,6 +82,7 @@ function ensureWorker(): Worker {
                 pending.forEach(p => p.handlers.onProgress?.(msg.progress))
                 break
             case 'ready':
+                setLoaded(msg.engineId)
                 readyListeners.forEach(fn => fn())
                 pending.forEach(p => p.handlers.onReady?.())
                 break
@@ -97,25 +112,14 @@ function ensureWorker(): Worker {
     return worker
 }
 
-// Preload weights ahead of the first message so it doesn't pay cold-start.
-export function warm(engine: Engine) {
+function tfWarm(engine: Engine) {
     ensureWorker().postMessage({ type: 'warm', engine: engineConfig(engine) })
 }
 
-export function onProgress(fn: (progress: string) => void): () => void {
-    progressListeners.add(fn)
-    return () => progressListeners.delete(fn)
-}
-
-export function onReady(fn: () => void): () => void {
-    readyListeners.add(fn)
-    return () => readyListeners.delete(fn)
-}
-
-export function generate(
+function tfGenerate(
     engine: Engine,
     messages: ChatMessage[],
-    handlers: GenerateHandlers = {},
+    handlers: GenerateHandlers,
     tools?: ToolSpec[]
 ): Promise<string> {
     const w = ensureWorker()
@@ -133,20 +137,66 @@ export function generate(
     })
 }
 
-// Interrupt every in-flight generation (used by the UI stop button).
-export function stopAll() {
-    if (!worker) return
-    pending.forEach((_p, id) => worker!.postMessage({ type: 'stop', id }))
+// ───────────────────────────────── public API ────────────────────────────────
+
+// Preload weights ahead of the first message so it doesn't pay cold-start.
+export function warm(engine: Engine) {
+    if (engine.runtime === 'webllm') return webllm.warm(engine)
+    if (engine.runtime === 'chrome') return chromeai.warm()
+    tfWarm(engine)
 }
 
-// Free the resident model's GPU memory but keep the worker thread alive (cheap
-// to reload from the browser cache). Used when leaving a tab.
+// Global progress/ready subscriptions (used by warm-up status UIs). Fans out to
+// every runtime so the subscriber sees progress regardless of which engine runs.
+export function onProgress(fn: (progress: string) => void): () => void {
+    progressListeners.add(fn)
+    const offWeb = webllm.onProgress(fn)
+    return () => {
+        progressListeners.delete(fn)
+        offWeb()
+    }
+}
+
+export function onReady(fn: () => void): () => void {
+    readyListeners.add(fn)
+    const offWeb = webllm.onReady(fn)
+    return () => {
+        readyListeners.delete(fn)
+        offWeb()
+    }
+}
+
+export function generate(
+    engine: Engine,
+    messages: ChatMessage[],
+    handlers: GenerateHandlers = {},
+    tools?: ToolSpec[]
+): Promise<string> {
+    if (engine.runtime === 'webllm') return webllm.generate(engine, messages, handlers)
+    if (engine.runtime === 'chrome') {
+        setLoaded(engine.id) // built-in model — "resident" as soon as it's used
+        return chromeai.generate(messages, handlers)
+    }
+    return tfGenerate(engine, messages, handlers, tools)
+}
+
+// Interrupt every in-flight generation (used by the UI stop button).
+export function stopAll() {
+    if (worker) pending.forEach((_p, id) => worker!.postMessage({ type: 'stop', id }))
+    void webllm.stop()
+}
+
+// Free resident model GPU memory across runtimes but keep workers alive (cheap to
+// reload from the browser cache). Used when leaving a tab.
 export function disposeModel() {
     worker?.postMessage({ type: 'dispose' })
+    void webllm.disposeModel()
+    setLoaded(null)
 }
 
 export function disposeRuntime() {
     worker?.terminate()
     worker = null
     pending.clear()
+    webllm.disposeRuntime()
 }

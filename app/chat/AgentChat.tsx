@@ -163,6 +163,7 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                             onProgress: setProgress,
                             onReady: () => setProgress(''),
                             onChunk: opts?.onChunk,
+                            json: opts?.json,
                         }),
                     tools: availableTools(toolContext),
                     ctx: toolContext,
