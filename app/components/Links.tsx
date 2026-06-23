@@ -2,22 +2,15 @@
 import { forwardRef, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import QRCodePopover from './QRCodePopover'
 import Terminal from './Terminal'
-import AskAI, { AskAIChip } from './AskAI'
 import { links, type LinkItem } from '../data/profile'
 
 export default function Links() {
     const [termOpen, setTermOpen] = useState(false)
-    const [aiOpen, setAiOpen] = useState(false)
     const termChipRef = useRef<HTMLButtonElement>(null)
-    const aiChipRef = useRef<HTMLButtonElement>(null)
     // Return focus to the launcher when the panel closes (keyboard accessibility).
     const closeTerm = () => {
         setTermOpen(false)
         termChipRef.current?.focus()
-    }
-    const closeAi = () => {
-        setAiOpen(false)
-        aiChipRef.current?.focus()
     }
     return (
         <>
@@ -31,17 +24,43 @@ export default function Links() {
                         </li>
                     )
                 })}
-                {/* Ask AI + Terminal launchers — sit as the last chips, each toggling its panel below. */}
+                {/* Ask AI + Terminal launchers — sit as the last chips. Ask AI links to the full chat page. */}
                 <li>
-                    <AskAIChip ref={aiChipRef} active={aiOpen} onClick={() => setAiOpen(o => !o)} />
+                    <AskAIChip />
                 </li>
                 <li>
                     <TerminalChip ref={termChipRef} active={termOpen} onClick={() => setTermOpen(o => !o)} />
                 </li>
             </ul>
-            <AskAI open={aiOpen} onClose={closeAi} />
             <Terminal open={termOpen} onClose={closeTerm} />
         </>
+    )
+}
+
+// Links to the standalone /chat page rather than opening an in-page panel.
+function AskAIChip() {
+    return (
+        <a
+            href="/chat"
+            aria-label="Open Ask AI chat"
+            title="Ask an on-device AI about Teo"
+            className="group inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm text-slate-700 ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:ring-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:ring-slate-600"
+        >
+            <svg
+                viewBox="0 0 24 24"
+                aria-hidden
+                className="h-4 w-4 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            >
+                <path d="M12 3a4 4 0 0 1 4 4 4 4 0 0 1 0 8 4 4 0 0 1-8 0 4 4 0 0 1 0-8 4 4 0 0 1 4-4Z" />
+                <path d="M12 7v.01M9 11h6" />
+            </svg>
+            <span>Ask AI</span>
+        </a>
     )
 }
 
