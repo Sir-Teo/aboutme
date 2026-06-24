@@ -4,7 +4,7 @@
 // would silently clobber a vector in the store).
 
 import { describe, it, expect } from 'vitest'
-import { ALL_KNOWLEDGE, KNOWLEDGE } from './knowledge'
+import { ALL_KNOWLEDGE, KNOWLEDGE, OVERVIEW_KNOWLEDGE } from './knowledge'
 import { GENERATED_KNOWLEDGE } from './generated'
 import { VAULT_KNOWLEDGE } from './vault'
 
@@ -19,8 +19,10 @@ describe('generated knowledge integrity', () => {
         }
     })
 
-    it('ALL_KNOWLEDGE = curated + generated + vault, with globally unique ids', () => {
-        expect(ALL_KNOWLEDGE.length).toBe(KNOWLEDGE.length + GENERATED_KNOWLEDGE.length + VAULT_KNOWLEDGE.length)
+    it('ALL_KNOWLEDGE = curated + overviews + generated + vault, with globally unique ids', () => {
+        expect(ALL_KNOWLEDGE.length).toBe(
+            KNOWLEDGE.length + OVERVIEW_KNOWLEDGE.length + GENERATED_KNOWLEDGE.length + VAULT_KNOWLEDGE.length
+        )
         const ids = ALL_KNOWLEDGE.map(c => c.id)
         expect(new Set(ids).size, 'duplicate ids would clobber vectors').toBe(ids.length)
     })

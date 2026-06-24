@@ -861,13 +861,154 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
     },
 ]
 
-// The full knowledge base the semantic agent grounds on: hand-curated facts, plus
-// everything ingested from Teo's public footprint (GitHub repos, blog posts), plus
-// the privacy-screened coursework/research/experience pass over his private vault
-// (VAULT_KNOWLEDGE). The lexical `retrieve` below and the homepage pill deliberately
-// stay on the curated KNOWLEDGE only — instant, no embedding, and a stable audit
-// target.
-export const ALL_KNOWLEDGE: KnowledgeChunk[] = [...KNOWLEDGE, ...GENERATED_KNOWLEDGE, ...VAULT_KNOWLEDGE]
+// ─────────────────────────────── Overviews (summary tier) ─────────────────────
+// Hierarchical "level-1" summary nodes (a lightweight RAPTOR/GraphRAG idea): global
+// questions like "summarize Teo's career" or "who is Teo" otherwise retrieve a few
+// scattered leaf facts and the small model has to synthesize them. A single dense
+// summary node answers them directly. These live in the SEMANTIC index only (via
+// ALL_KNOWLEDGE) — kept out of KNOWLEDGE so they don't perturb the lexical retriever
+// (and its top-1 audit) or the homepage pill. Each still cites a public source.
+export const OVERVIEW_KNOWLEDGE: KnowledgeChunk[] = [
+    {
+        id: 'overview-bio',
+        topic: 'Who Teo is (overview)',
+        text: 'Teo (Weicheng Zeng) is a data scientist and AI/ML engineer in the New York City area. He pairs deep mathematical and statistical training (a UCSB triple major, an NYU M.S. in Data Science) with production engineering — building, validating, deploying and explaining models end to end. Today he works on airline pricing and AI systems at 3Victors / ATPCO, with prior medical-imaging AI research at NYU Langone, several peer-reviewed publications, and a wide open-source and writing footprint. Outside work he is into basketball, running, Go and chess, traveling, and video games.',
+        keywords: [
+            'who is teo',
+            'who is he',
+            'introduce',
+            'introduction',
+            'about teo',
+            'summary',
+            'overview',
+            'tell me about',
+            'in general',
+            'overall',
+            'bio',
+            'profile',
+            'elevator pitch',
+            'background',
+            'snapshot',
+            'everything',
+        ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
+    },
+    {
+        id: 'overview-career',
+        topic: 'Career overview',
+        text: "Teo's career spans applied data science, ML research, and AI engineering. Now: Data Scientist at 3Victors / ATPCO (airline pricing — a 5B+-record fare foundation model, LangGraph agent systems, the PriceEye real-time pipeline, demand forecasting). Before: AI Research Associate at NYU Langone Health (medical-imaging AI — brain-tumor segmentation, pancreatitis severity, HCC recurrence) and an AI Software Engineer Intern at T.M. Bier & Associates. The throughline is taking ambiguous problems from model to validated, deployed system.",
+        keywords: [
+            'career',
+            'career summary',
+            'work history',
+            'experience overview',
+            'professional background',
+            'summarize career',
+            'work experience',
+            'jobs',
+            'roles',
+            'trajectory',
+            'resume',
+            'cv',
+            'employment',
+        ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
+    },
+    {
+        id: 'overview-education',
+        topic: 'Education overview',
+        text: 'Teo holds an M.S. in Data Science from NYU (2023–2025, GPA 3.90) and a B.S. from UC Santa Barbara (2019–2023, GPA 3.95) — a triple major in Applied Mathematics, Statistics & Data Science, and Psychological & Brain Sciences. His coursework runs from proof-based mathematics (analysis, algebra, topology) through deep learning, reinforcement learning, Bayesian ML, NLP, and the interpretability/causality of language models.',
+        keywords: [
+            'education',
+            'education summary',
+            'academic background',
+            'schooling',
+            'degrees',
+            'studied',
+            'academics',
+            'qualifications',
+            'where did he study',
+            'university',
+            'college',
+            'coursework overview',
+            'gpa',
+        ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
+    },
+    {
+        id: 'overview-research',
+        topic: 'Research overview',
+        text: "Teo's research is interdisciplinary, with peer-reviewed work across medical-imaging AI (acute-pancreatitis severity from CT, HCC recurrence with DINOv2, brain-tumor segmentation), deep learning for crystallography, and computational social science (elder-financial-exploitation analysis). He has also worked on conversational-memory psycholinguistics, solid-state-physics ML, and scientific ML over dynamical systems. His full list is on Google Scholar.",
+        keywords: [
+            'research',
+            'research summary',
+            'research overview',
+            'research areas',
+            'what research',
+            'publications',
+            'papers overview',
+            'scholar',
+            'academic work',
+            'areas of study',
+            'research interests',
+            'fields',
+        ],
+        source: { label: 'Google Scholar', url: 'https://scholar.google.com/citations?user=lLhU3igAAAAJ&hl=en' },
+    },
+    {
+        id: 'overview-skills',
+        topic: 'Skills overview',
+        text: "Teo's skills span machine learning (predictive modeling, NLP, time series, causal inference, computer vision, LLM agents), strong math/statistics foundations, Python (PyTorch, TensorFlow, JAX) plus SQL/R/Java/C++, and cloud/MLOps (AWS, GCP, Docker, CI/CD). He works end to end — from modeling and validation to pipelines, dashboards, and deployment — and experiments hands-on with open-weight, on-device LLMs.",
+        keywords: [
+            'skills',
+            'skills overview',
+            'capabilities',
+            'what can teo do',
+            'strengths',
+            'expertise',
+            'tech stack',
+            'technologies',
+            'what is he good at',
+            'abilities',
+            'toolset',
+            'competencies',
+        ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
+    },
+    {
+        id: 'overview-projects',
+        topic: 'Projects overview',
+        text: "Teo's projects range from in-browser AI apps — Web-KaTrain (Go analysis with TensorFlow.js + MCTS), web-chess, MusicBART, json2vec — to an agentic legal/export-compliance consultant (rag-law) and the on-device assistant powering this very site. He is also an active Kaggle competitor across vision, NLP, time-series, and scientific ML. His GitHub (Sir-Teo) has the full set.",
+        keywords: [
+            'projects',
+            'projects overview',
+            'what has teo built',
+            'portfolio',
+            'side projects',
+            'github projects',
+            'apps',
+            'what does he build',
+            'open source',
+            'things he made',
+            'repositories',
+            'showcase',
+        ],
+        source: { label: 'GitHub', url: 'https://github.com/Sir-Teo' },
+    },
+]
+
+// The full knowledge base the semantic agent grounds on: hand-curated facts, the
+// summary/overview tier, everything ingested from Teo's public footprint (GitHub
+// repos, blog posts), and the privacy-screened coursework/research/experience pass
+// over his private vault (VAULT_KNOWLEDGE). The lexical `retrieve` below and the
+// homepage pill deliberately stay on the curated KNOWLEDGE only — instant, no
+// embedding, and a stable audit target.
+export const ALL_KNOWLEDGE: KnowledgeChunk[] = [
+    ...KNOWLEDGE,
+    ...OVERVIEW_KNOWLEDGE,
+    ...GENERATED_KNOWLEDGE,
+    ...VAULT_KNOWLEDGE,
+]
 
 // Lightweight English stopwords — dropped from queries so scoring keys off
 // content words. Kept small on purpose; the goal is signal, not NLP rigor.

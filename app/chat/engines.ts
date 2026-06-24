@@ -70,7 +70,9 @@ export const ENGINES: Engine[] = [
         modality: ['text'],
         toolCalling: true,
         sizeLabel: '~750 MB',
-        maxNewTokens: 256,
+        // Generous headroom (default chat engine) so answers can be rich and
+        // comprehensive without truncating mid-thought.
+        maxNewTokens: 512,
     },
     {
         id: 'lfm2.5-1.2b-thinking',
@@ -181,7 +183,7 @@ export const ENGINES: Engine[] = [
         toolCalling: true,
         constrainedJson: true,
         sizeLabel: '~2.5 GB',
-        maxNewTokens: 384,
+        maxNewTokens: 512,
     },
     {
         id: 'webllm-phi-3.5-mini',

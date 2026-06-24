@@ -6,7 +6,7 @@
 // on-device models are far more reliable emitting a constrained JSON object than
 // using model-specific native tool tokens, and it keeps the graph engine-agnostic.
 
-import { retrieveSemantic } from './retrieval'
+import { retrieveHybrid } from './retrieval'
 
 // Side-effecting handlers the React layer provides (DOM/route/theme/memory).
 export type ToolContext = {
@@ -96,7 +96,10 @@ export const TOOLS: Tool[] = [
         description: 'Look up facts about Teo (work, education, research, projects, skills) to ground an answer.',
         parameters: { query: 'what to look up, e.g. "education" or "current job"' },
         run: async args => {
-            const chunks = await retrieveSemantic(String(args.query ?? ''), 5)
+            // Hybrid (dense + BM25 → RRF → rerank) — the same path the final answer
+            // grounds on, so the tool surfaces the strongest facts, not just the
+            // bi-encoder's first guess.
+            const chunks = await retrieveHybrid(String(args.query ?? ''), 8)
             if (!chunks.length) return 'No matching facts found.'
             return chunks.map(c => `- ${c.text}`).join('\n')
         },

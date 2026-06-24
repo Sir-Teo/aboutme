@@ -69,7 +69,11 @@ const IMAGE_OPS: { task: VisionLabTask; label: string }[] = VISION_LAB_TASKS.map
 // tool observations are appended by the agent graph's respond node.
 type Tone = 'default' | 'recruiter' | 'researcher' | 'casual'
 const TONES: { id: Tone; label: string; line: string }[] = [
-    { id: 'default', label: 'Default', line: 'Answer concisely and warmly, in one or two short sentences.' },
+    {
+        id: 'default',
+        label: 'Default',
+        line: 'Answer warmly and helpfully in a short, well-rounded paragraph (about 3–5 sentences). Weave in the most relevant specifics — names, numbers, dates, projects — and a little context so the answer feels complete, but stay focused and skip filler.',
+    },
     {
         id: 'recruiter',
         label: 'Recruiter',
@@ -389,7 +393,9 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                     grounding: async q => {
                         const doc = docRef.current
                         const [{ text: facts, sources }, mems, docExcerpts] = await Promise.all([
-                            groundingWithSources(q, 5),
+                            // Ground on a wider set (8) so richer, multi-faceted
+                            // answers have the supporting facts to draw on.
+                            groundingWithSources(q, 8),
                             recallMemory(q, 3),
                             doc ? searchDoc(doc.store, q, 4) : Promise.resolve<string[]>([]),
                         ])
