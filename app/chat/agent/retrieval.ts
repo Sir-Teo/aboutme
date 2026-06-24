@@ -80,9 +80,10 @@ export async function retrieveSemantic(query: string, k = 5): Promise<RetrievedC
 // Two-stage retrieval: pull a wide candidate set with the bi-encoder, then let
 // the cross-encoder reranker re-score them for sharper grounding. Falls back to
 // the first-stage order if the reranker isn't available. The candidate pool is
-// wide (30) so a curated fact still reaches the reranker even when the bi-encoder
-// surfaces many ingested blog/repo chunks first.
-export async function retrieveReranked(query: string, k = 5, candidates = 30): Promise<RetrievedChunk[]> {
+// wide (40) so a curated fact still reaches the reranker even when the bi-encoder
+// surfaces many ingested chunks first — widened as the KB grew past ~500 (curated +
+// GitHub/blog + the privacy-screened vault coursework/research pass).
+export async function retrieveReranked(query: string, k = 5, candidates = 40): Promise<RetrievedChunk[]> {
     const pool = await retrieveSemantic(query, candidates)
     if (pool.length <= k) return pool
     try {

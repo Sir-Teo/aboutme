@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "ingest": "node scripts/ingest.mjs",
+    "ingest:vault": "node scripts/ingest-vault.mjs",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "next lint --dir app",

@@ -71,6 +71,41 @@ function f16ToF32(input: Uint16Array): Float32Array {
     return out
 }
 
+// ─────────────────────────── dtype-aware tensor I/O ──────────────────────────
+// SD-Turbo ORT-web exports exist in both fp16 and fp32 (and mixed) flavors. The
+// dtype each graph wants is read from the session at runtime rather than assumed,
+// so feeding fp16 into an fp32 input can't throw "Unexpected input data type.
+// Actual: tensor(float16), expected: tensor(float)".
+
+// The dtype a loaded session declares for input `name` (undefined when the runtime
+// doesn't expose metadata — callers then fall back to the fp16 assumption).
+function inType(session: any, name: string): string | undefined {
+    const md = session.inputMetadata as ReadonlyArray<{ name: string; isTensor: boolean; type?: string }> | undefined
+    return md?.find(m => m.name === name && m.isTensor)?.type
+}
+
+// A float tensor in the dtype the graph declares for `name` (fp16 unless fp32).
+function floatTensor(session: any, name: string, data: Float32Array, dims: readonly number[]) {
+    return inType(session, name) === 'float32'
+        ? new ort.Tensor('float32', data, dims as number[])
+        : new ort.Tensor('float16', f32ToF16(data), dims as number[])
+}
+
+// A 1-element scalar input (e.g. timestep) in the declared dtype. int64 is the
+// usual SD default, but some exports use fp16/fp32/int32.
+function scalarTensor(session: any, name: string, value: number) {
+    switch (inType(session, name)) {
+        case 'float16':
+            return new ort.Tensor('float16', f32ToF16(new Float32Array([value])), [1])
+        case 'float32':
+            return new ort.Tensor('float32', Float32Array.from([value]), [1])
+        case 'int32':
+            return new ort.Tensor('int32', Int32Array.from([value]), [1])
+        default:
+            return new ort.Tensor('int64', BigInt64Array.from([BigInt(value)]), [1])
+    }
+}
+
 function randn(n: number): Float32Array {
     const out = new Float32Array(n)
     for (let i = 0; i < n; i += 2) {
@@ -134,17 +169,18 @@ async function generate(req: Extract<Req, { type: 'generate' }>) {
         // 1) Tokenize → input_ids [1,77] int32.
         const enc = await s.tokenizer(req.prompt, { padding: 'max_length', max_length: 77, truncation: true })
         const idsArr = Array.from(enc.input_ids.data as BigInt64Array | Int32Array | number[], (v: any) => Number(v))
-        const inputIds = new ort.Tensor('int32', Int32Array.from(idsArr), [1, idsArr.length])
-
-        // 2) Text encoder → hidden states (fp16).
         const textIn = s.text.inputNames[0]
+        const inputIds =
+            inType(s.text, textIn) === 'int64'
+                ? new ort.Tensor('int64', BigInt64Array.from(idsArr.map((v: number) => BigInt(v))), [1, idsArr.length])
+                : new ort.Tensor('int32', Int32Array.from(idsArr), [1, idsArr.length])
+
+        // 2) Text encoder → hidden states (fp16 or fp32 depending on the export).
         const textOut = await s.text.run({ [textIn]: inputIds })
         const hiddenName = pick(s.text.outputNames, 'hidden', 'last')
-        const hidden = textOut[hiddenName] // float16 tensor [1,77,1024]
-        const hiddenF16 =
-            hidden.type === 'float16'
-                ? hidden
-                : new ort.Tensor('float16', f32ToF16(hidden.data as Float32Array), hidden.dims)
+        const hidden = textOut[hiddenName] // hidden states [1,77,1024], fp16 or fp32
+        const hiddenF32 =
+            hidden.type === 'float16' ? f16ToF32(hidden.data as Uint16Array) : (hidden.data as Float32Array)
 
         // 3) Latents and single UNet step.
         post({ type: 'progress', progress: 'Diffusing…' })
@@ -156,25 +192,17 @@ async function generate(req: Extract<Req, { type: 'generate' }>) {
         const modelInput = new Float32Array(n)
         for (let i = 0; i < n; i++) modelInput[i] = latents[i] * scale
 
-        const sampleTensor = new ort.Tensor('float16', f32ToF16(modelInput), [1, LATENT.c, LATENT.h, LATENT.w])
         const uNames: string[] = s.unet.inputNames
         const sampleName = pick(uNames, 'sample', 'latent')
         const tName = pick(uNames, 'timestep', 'time', 't')
         const encName = pick(uNames, 'encoder', 'hidden', 'context')
-        // Timestep dtype varies between exports — try int64, fall back to float16.
-        let unetOut: any
-        const feedsBase: Record<string, any> = { [sampleName]: sampleTensor, [encName]: hiddenF16 }
-        try {
-            unetOut = await s.unet.run({
-                ...feedsBase,
-                [tName]: new ort.Tensor('int64', BigInt64Array.from([BigInt(TIMESTEP)]), [1]),
-            })
-        } catch {
-            unetOut = await s.unet.run({
-                ...feedsBase,
-                [tName]: new ort.Tensor('float16', f32ToF16(new Float32Array([TIMESTEP])), [1]),
-            })
-        }
+        // Feed every input in the dtype THIS export declares — assuming fp16 here is
+        // what produced the ORT "expected: tensor(float)" error on an fp32 export.
+        const unetOut = await s.unet.run({
+            [sampleName]: floatTensor(s.unet, sampleName, modelInput, [1, LATENT.c, LATENT.h, LATENT.w]),
+            [encName]: floatTensor(s.unet, encName, hiddenF32, hidden.dims as number[]),
+            [tName]: scalarTensor(s.unet, tName, TIMESTEP),
+        })
         const noisePredRaw = unetOut[s.unet.outputNames[0]]
         const noisePred =
             noisePredRaw.type === 'float16'
@@ -189,7 +217,7 @@ async function generate(req: Extract<Req, { type: 'generate' }>) {
         post({ type: 'progress', progress: 'Decoding image…' })
         const vaeIn = s.vae.inputNames[0]
         const vaeOut = await s.vae.run({
-            [vaeIn]: new ort.Tensor('float16', f32ToF16(sample), [1, LATENT.c, LATENT.h, LATENT.w]),
+            [vaeIn]: floatTensor(s.vae, vaeIn, sample, [1, LATENT.c, LATENT.h, LATENT.w]),
         })
         const imgRaw = vaeOut[s.vae.outputNames[0]]
         const px = imgRaw.type === 'float16' ? f16ToF32(imgRaw.data as Uint16Array) : (imgRaw.data as Float32Array)

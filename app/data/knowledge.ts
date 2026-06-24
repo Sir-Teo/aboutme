@@ -11,15 +11,20 @@
 // app/chat/agent/retrieval.ts (used in the playground). Granular, self-contained
 // chunks help both: each chunk should answer one question well on its own.
 //
-// Sources of truth (all the user's own, public): the résumé-derived `bio` in
-// profile.ts, the GitHub profile (github.com/Sir-Teo), Google Scholar, and the
-// research blog (sir-teo.github.io/blogs). Don't add a fact you can't attribute.
+// Sources of truth (all the user's own): the résumé-derived `bio` in profile.ts,
+// the GitHub profile (github.com/Sir-Teo), Google Scholar, the research blog
+// (sir-teo.github.io/blogs), and a curated, privacy-screened pass over Teo's
+// private "knowledgebase" Obsidian vault (~/Developer/knowledgebase — résumé,
+// transcripts, project/research/skills MOCs). Only public-appropriate facts make
+// it in here, and each is cited to a PUBLIC url (LinkedIn/Scholar/GitHub/Kaggle),
+// never the vault. Don't add a fact you can't attribute.
 
 // Auto-ingested chunks (GitHub repos + blog posts), refreshed by `npm run ingest`.
 // Kept in a separate committed file so static builds need no network; the lexical
 // retriever below stays on the hand-curated set, while the semantic retriever in
 // app/chat/agent/retrieval.ts reads ALL_KNOWLEDGE (curated + generated).
 import { GENERATED_KNOWLEDGE } from './generated'
+import { VAULT_KNOWLEDGE } from './vault'
 
 // A citable origin for a fact — surfaced under answers so the agent's claims are
 // attributable (and hallucinations are visible). Optional: facts with no single
@@ -67,6 +72,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'new york',
             'city',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
     },
     {
         id: 'contact',
@@ -187,6 +193,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'biggest achievement',
             'proud',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
     },
     {
         id: 'agents',
@@ -207,6 +214,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'orchestration',
             'automation',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
     },
     {
         id: 'priceeye',
@@ -226,6 +234,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'throughput',
             'records',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
     },
     {
         id: 'forecasting',
@@ -243,6 +252,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'prediction',
             'predict',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
     },
 
     // ───────────────────────────── Prior experience ───────────────────────────
@@ -273,6 +283,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'radiology',
             'hospital',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
     },
     {
         id: 'tmbier',
@@ -292,6 +303,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'docker',
             'first job',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
     },
 
     // ─────────────────────────────── Education ────────────────────────────────
@@ -315,6 +327,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'studied',
             'studies',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
     },
     {
         id: 'edu-ucsb',
@@ -341,6 +354,80 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'gpa',
             'college',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
+    },
+
+    {
+        id: 'math-foundation',
+        topic: 'Mathematical foundation',
+        text: "Teo's UC Santa Barbara training gave him a deep proof-based mathematics foundation: real and complex analysis, abstract algebra, number theory, topology, numerical analysis, differential equations (ODEs/PDEs), stochastic processes, and operations research — the rigor under his applied ML and statistical modeling work.",
+        keywords: [
+            'math',
+            'mathematics',
+            'applied math',
+            'pure math',
+            'proof',
+            'analysis',
+            'real analysis',
+            'complex analysis',
+            'abstract algebra',
+            'number theory',
+            'topology',
+            'numerical analysis',
+            'differential equations',
+            'pde',
+            'stochastic',
+            'operations research',
+            'foundation',
+            'rigor',
+            'theory',
+        ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
+    },
+    {
+        id: 'grad-ml-coursework',
+        topic: 'Graduate ML/AI coursework',
+        text: "Teo's NYU Data Science M.S. coursework spanned deep learning, reinforcement learning, Bayesian machine learning, statistical learning theory, natural language understanding (NLU/NLP), interpretability and causality of language models, and inference and representation — the academic grounding behind his applied LLM and agent work.",
+        keywords: [
+            'coursework',
+            'courses',
+            'classes',
+            'graduate',
+            'masters',
+            'nyu',
+            'deep learning',
+            'reinforcement learning',
+            'rl',
+            'bayesian',
+            'statistical learning theory',
+            'nlu',
+            'nlp',
+            'interpretability',
+            'causality',
+            'language models',
+            'curriculum',
+            'studied',
+        ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
+    },
+    {
+        id: 'pioneer',
+        topic: 'Pre-college research',
+        text: 'Before UC Santa Barbara, Teo did mentored research through the Pioneer Academics program (designing a domain-specific language for circuit drawing) — an early sign of the research-and-implementation bent that runs through his later work.',
+        keywords: [
+            'pioneer',
+            'pioneer academics',
+            'high school',
+            'pre-college',
+            'early research',
+            'dsl',
+            'domain-specific language',
+            'circuit',
+            'before college',
+            'background',
+            'origin',
+        ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
     },
 
     // ─────────────────────────────── Skills ───────────────────────────────────
@@ -366,6 +453,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'specialize',
             'strengths',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
     },
     {
         id: 'skills-languages',
@@ -391,6 +479,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'matlab',
             'framework',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
     },
     {
         id: 'skills-cloud',
@@ -413,6 +502,97 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'deployment',
             'infrastructure',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
+    },
+
+    // ─────────────────────────────── Approach & breadth ──────────────────────
+    {
+        id: 'approach',
+        topic: 'Approach & working style',
+        text: 'Teo works at the boundary between modeling and implementation: he turns ambiguous business or research questions into models, pipelines, dashboards, and validation systems, then explains them to both technical and non-technical audiences. He pairs statistical reasoning with engineering rather than treating them as separate skills.',
+        keywords: [
+            'approach',
+            'working style',
+            'how he works',
+            'how he thinks',
+            'philosophy',
+            'process',
+            'strengths',
+            'end-to-end',
+            'modeling',
+            'implementation',
+            'engineering',
+            'communication',
+            'what is he like',
+            'mindset',
+        ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
+    },
+    {
+        id: 'kaggle',
+        topic: 'Kaggle competitions',
+        text: 'Teo is an active Kaggle competitor (kaggle.com/sirteo), working problems across computer vision, NLP, time-series, reinforcement learning, and scientific ML — a steady habit of hands-on benchmarking against real datasets.',
+        keywords: [
+            'kaggle',
+            'competition',
+            'competitions',
+            'compete',
+            'sirteo',
+            'benchmark',
+            'leaderboard',
+            'data science competition',
+            'practice',
+            'datasets',
+        ],
+        source: { label: 'Kaggle', url: 'https://www.kaggle.com/sirteo' },
+    },
+    {
+        id: 'local-llms',
+        topic: 'Open-weight & on-device LLMs',
+        text: "Teo experiments hands-on with open-weight and local LLMs — small-model post-training and inference labs, and close reading of model reports (DeepSeek-R1, Qwen3, Phi). That interest is what powers this site's fully on-device 'Ask AI' assistant, which runs models in the browser with no server.",
+        keywords: [
+            'local llm',
+            'open-weight',
+            'open weight',
+            'on-device',
+            'on device',
+            'browser',
+            'webgpu',
+            'transformers.js',
+            'post-training',
+            'fine-tuning',
+            'deepseek',
+            'qwen',
+            'phi',
+            'ollama',
+            'lm studio',
+            'this assistant',
+            'how does this chat work',
+        ],
+        source: { label: 'GitHub', url: 'https://github.com/Sir-Teo' },
+    },
+    {
+        id: 'research-breadth',
+        topic: 'Research breadth',
+        text: 'Beyond his headline medical-imaging papers, Teo has worked across research areas: conversational memory and conversational alignment (psycholinguistics/NLP), solid-state physics ML (antiferromagnetic-domain segmentation and generative prediction at AIfSR), and scientific machine learning over dynamical systems and Gaussian processes.',
+        keywords: [
+            'research',
+            'research areas',
+            'research breadth',
+            'interests',
+            'conversational memory',
+            'conversational alignment',
+            'psycholinguistics',
+            'physics',
+            'solid-state',
+            'antiferromagnetic',
+            'aifsr',
+            'scientific machine learning',
+            'dynamical systems',
+            'gaussian process',
+            'interdisciplinary',
+        ],
+        source: { label: 'Google Scholar', url: 'https://scholar.google.com/citations?user=lLhU3igAAAAJ&hl=en' },
     },
 
     // ─────────────────────────────── Publications ─────────────────────────────
@@ -434,7 +614,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'co-author',
             'author',
         ],
-        source: { label: 'Google Scholar', url: 'https://scholar.google.com/scholar?q=Weicheng+Zeng+pancreatitis' },
+        source: { label: 'Google Scholar', url: 'https://scholar.google.com/citations?user=lLhU3igAAAAJ&hl=en' },
     },
     {
         id: 'pub-crystallography',
@@ -455,7 +635,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'co-author',
             'science',
         ],
-        source: { label: 'Google Scholar', url: 'https://scholar.google.com/scholar?q=Weicheng+Zeng+crystallography' },
+        source: { label: 'Google Scholar', url: 'https://scholar.google.com/citations?user=lLhU3igAAAAJ&hl=en' },
     },
     {
         id: 'pub-elder-finance',
@@ -475,10 +655,49 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'aging',
             'social science',
         ],
-        source: {
-            label: 'Google Scholar',
-            url: 'https://scholar.google.com/scholar?q=Weicheng+Zeng+elder+financial+exploitation',
-        },
+        source: { label: 'Google Scholar', url: 'https://scholar.google.com/citations?user=lLhU3igAAAAJ&hl=en' },
+    },
+    {
+        id: 'pub-hcc',
+        topic: 'Publication — hepatocellular carcinoma (HCC) recurrence',
+        text: 'Teo (W. Zeng) co-authored work on hepatocellular carcinoma (HCC / liver cancer) recurrence prediction from imaging using DINOv2 (C-index 0.85), published in the liver-transplantation / hepatology literature. The accompanying code is in his GitHub "HCC" repo.',
+        keywords: [
+            'publication',
+            'paper',
+            'papers',
+            'hcc',
+            'hepatocellular',
+            'carcinoma',
+            'liver',
+            'liver cancer',
+            'liver transplantation',
+            'recurrence',
+            'dinov2',
+            'c-index',
+            'co-author',
+            'medical paper',
+        ],
+        source: { label: 'Google Scholar', url: 'https://scholar.google.com/citations?user=lLhU3igAAAAJ&hl=en' },
+    },
+    {
+        id: 'pub-conversational-memory',
+        topic: 'Publication — conversational memory',
+        text: 'Teo (W. Zeng) co-authored cognitive-science / psycholinguistics research on conversational memory — how conversational partners shape what people say but not what they later recollect — connected to his idea-unit extraction and conversation-alignment work.',
+        keywords: [
+            'publication',
+            'paper',
+            'papers',
+            'conversational memory',
+            'conversation',
+            'psycholinguistics',
+            'cognitive science',
+            'recollection',
+            'memory',
+            'idea unit',
+            'alignment',
+            'co-author',
+        ],
+        source: { label: 'Google Scholar', url: 'https://scholar.google.com/citations?user=lLhU3igAAAAJ&hl=en' },
     },
     {
         id: 'publications-overview',
@@ -496,7 +715,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'co-author',
             'citations',
         ],
-        source: { label: 'Google Scholar', url: 'https://scholar.google.com/scholar?q=Weicheng+Zeng' },
+        source: { label: 'Google Scholar', url: 'https://scholar.google.com/citations?user=lLhU3igAAAAJ&hl=en' },
     },
 
     // ─────────────────────────────── Projects ─────────────────────────────────
@@ -518,6 +737,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'building',
             'current project',
         ],
+        source: { label: 'GitHub', url: 'https://github.com/Sir-Teo/rag-law' },
     },
     {
         id: 'proj-katrain',
@@ -539,24 +759,28 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'monte carlo',
             'browser',
         ],
+        source: { label: 'GitHub', url: 'https://github.com/Sir-Teo/web-katrain' },
     },
     {
         id: 'proj-web-chess',
         topic: 'Project — Web-Chess',
         text: 'Teo built web-chess, a modern, polished chess application built with React, TypeScript, and Vite.',
         keywords: ['project', 'projects', 'web-chess', 'chess app', 'chess application', 'react', 'typescript', 'vite'],
+        source: { label: 'GitHub', url: 'https://github.com/Sir-Teo/web-chess' },
     },
     {
         id: 'proj-musicbart',
         topic: 'Project — MusicBART',
         text: 'Teo built MusicBART, a project that generates music using the BART sequence-to-sequence model.',
         keywords: ['project', 'projects', 'musicbart', 'music', 'bart', 'generation', 'generative', 'audio', 'seq2seq'],
+        source: { label: 'GitHub', url: 'https://github.com/Sir-Teo/MusicBART' },
     },
     {
         id: 'proj-json2vec',
         topic: 'Project — json2vec',
         text: 'Teo built json2vec, which turns nested, ragged data into neural representations with typed schemas for prediction and embedding.',
         keywords: ['project', 'projects', 'json2vec', 'json', 'embedding', 'representation', 'schema', 'neural'],
+        source: { label: 'GitHub', url: 'https://github.com/Sir-Teo' },
     },
     {
         id: 'proj-misc',
@@ -572,6 +796,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'side projects',
             'other',
         ],
+        source: { label: 'GitHub', url: 'https://github.com/Sir-Teo/visualizing-grades' },
     },
 
     // ─────────────────────────────── Interests & hobbies ──────────────────────
@@ -599,24 +824,28 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
         topic: 'Hobby — running',
         text: 'Teo enjoys running and tracks his activity on Strava (strava.com/athletes/206183585).',
         keywords: ['running', 'run', 'runner', 'strava', 'cardio', 'exercise', 'fitness', 'marathon'],
+        source: { label: 'Strava', url: 'https://www.strava.com/athletes/206183585' },
     },
     {
         id: 'hobby-basketball',
         topic: 'Hobby — basketball & sports',
         text: 'Teo is a basketball fan and player, and enjoys sports in general — his GitHub bio even ends with "and basketball!".',
         keywords: ['basketball', 'sport', 'sports', 'ball', 'nba', 'play', 'athletic'],
+        source: { label: 'GitHub', url: 'https://github.com/Sir-Teo' },
     },
     {
         id: 'hobby-go',
         topic: 'Hobby — Go / Weiqi',
         text: 'Teo plays the board game Go (Weiqi / Baduk) — he has an OGS profile (online-go.com) and built the Web-KaTrain Go-analysis app.',
         keywords: ['go game', 'weiqi', 'baduk', 'ogs', 'online-go', 'board game', 'katrain', 'igo'],
+        source: { label: 'OGS', url: 'https://online-go.com/user/view/622443' },
     },
     {
         id: 'hobby-chess',
         topic: 'Hobby — chess',
         text: 'Teo plays chess on Chess.com (member masterteo1205) and built a web-chess application.',
         keywords: ['chess', 'chess.com', 'masterteo1205', 'board game', 'web-chess'],
+        source: { label: 'Chess.com', url: 'https://www.chess.com/member/masterteo1205' },
     },
     {
         id: 'hobby-gaming',
@@ -632,11 +861,13 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
     },
 ]
 
-// The full knowledge base the semantic agent grounds on: hand-curated facts plus
-// everything ingested from Teo's public footprint (GitHub repos, blog posts). The
-// lexical `retrieve` below and the homepage pill deliberately stay on the curated
-// KNOWLEDGE only — instant, no embedding, and a stable audit target.
-export const ALL_KNOWLEDGE: KnowledgeChunk[] = [...KNOWLEDGE, ...GENERATED_KNOWLEDGE]
+// The full knowledge base the semantic agent grounds on: hand-curated facts, plus
+// everything ingested from Teo's public footprint (GitHub repos, blog posts), plus
+// the privacy-screened coursework/research/experience pass over his private vault
+// (VAULT_KNOWLEDGE). The lexical `retrieve` below and the homepage pill deliberately
+// stay on the curated KNOWLEDGE only — instant, no embedding, and a stable audit
+// target.
+export const ALL_KNOWLEDGE: KnowledgeChunk[] = [...KNOWLEDGE, ...GENERATED_KNOWLEDGE, ...VAULT_KNOWLEDGE]
 
 // Lightweight English stopwords — dropped from queries so scoring keys off
 // content words. Kept small on purpose; the goal is signal, not NLP rigor.

@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest'
 import { ALL_KNOWLEDGE, KNOWLEDGE } from './knowledge'
 import { GENERATED_KNOWLEDGE } from './generated'
+import { VAULT_KNOWLEDGE } from './vault'
 
 describe('generated knowledge integrity', () => {
     it('every generated chunk is well-formed and cites a source', () => {
@@ -18,8 +19,8 @@ describe('generated knowledge integrity', () => {
         }
     })
 
-    it('ALL_KNOWLEDGE = curated + generated, with globally unique ids', () => {
-        expect(ALL_KNOWLEDGE.length).toBe(KNOWLEDGE.length + GENERATED_KNOWLEDGE.length)
+    it('ALL_KNOWLEDGE = curated + generated + vault, with globally unique ids', () => {
+        expect(ALL_KNOWLEDGE.length).toBe(KNOWLEDGE.length + GENERATED_KNOWLEDGE.length + VAULT_KNOWLEDGE.length)
         const ids = ALL_KNOWLEDGE.map(c => c.id)
         expect(new Set(ids).size, 'duplicate ids would clobber vectors').toBe(ids.length)
     })
@@ -27,6 +28,42 @@ describe('generated knowledge integrity', () => {
     it('every generated id is namespaced (gh-/blog-) so it cannot collide with curated ids', () => {
         for (const c of GENERATED_KNOWLEDGE) {
             expect(c.id, c.id).toMatch(/^(gh-|blog-)/)
+        }
+    })
+})
+
+describe('vault knowledge integrity & privacy', () => {
+    it('has a healthy number of coursework + research/experience chunks', () => {
+        expect(VAULT_KNOWLEDGE.length).toBeGreaterThanOrEqual(80)
+    })
+
+    it('every vault chunk is well-formed, namespaced, and cites a PUBLIC source', () => {
+        const publicHosts = /^https:\/\/(www\.)?(linkedin\.com|scholar\.google\.com|github\.com|kaggle\.com)\//
+        for (const c of VAULT_KNOWLEDGE) {
+            expect(c.id, c.id).toMatch(/^vault-/)
+            expect(c.text.length, c.id).toBeGreaterThan(40)
+            expect(c.keywords.length, c.id).toBeGreaterThan(0)
+            expect(c.source?.url ?? '', `${c.id} must cite a public profile`).toMatch(publicHosts)
+        }
+    })
+
+    // The vault is private; this is the contract that keeps the public site safe.
+    // A re-ingest that leaks any of these must fail CI rather than ship.
+    it('leaks no private artifacts (paths, files, emails, ids, or PI names)', () => {
+        const FORBIDDEN = [
+            /\/Users\//i,
+            /\b(Developer|Documents|Downloads|Desktop|Library|iCloud)\//,
+            /\.(pdf|ipynb|csv|xlsx|docx|pptx|pages|bib|tex|nii|plist|dsstore)\b/i,
+            /@[a-z0-9.-]+\.[a-z]{2,}/i,
+            /\b\d{6,}\b/,
+            /\b(Yoon|Ludkovski|Mengyang|Kilaberia|Cournane|Ailis)\b/,
+            /\b(instructor|teaching assistant|syllabus)\b/i,
+        ]
+        for (const c of VAULT_KNOWLEDGE) {
+            const blob = `${c.topic} ${c.text} ${c.keywords.join(' ')}`
+            for (const re of FORBIDDEN) {
+                expect(re.test(blob), `${c.id} leaks ${re}`).toBe(false)
+            }
         }
     })
 })
