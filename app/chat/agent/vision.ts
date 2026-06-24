@@ -25,10 +25,6 @@ type WorkerResponse =
     | { type: 'done'; id: string; text: string }
     | { type: 'error'; id?: string; message: string }
 
-// Vision answers (describe / OCR) can be long; give them a generous ceiling rather
-// than the engine's small chat default.
-const VISION_MAX_TOKENS = 1024
-
 let worker: Worker | null = null
 let nextId = 0
 const pending = new Map<string, { resolve: (text: string) => void; reject: (e: Error) => void; handlers: Handlers }>()
@@ -39,7 +35,7 @@ function cfg(engine: Engine): VisionConfig {
         modelId: engine.modelId,
         modelClass: engine.modelClass ?? '',
         dtype: engine.dtype,
-        maxNewTokens: VISION_MAX_TOKENS,
+        maxNewTokens: engine.maxNewTokens,
     }
 }
 

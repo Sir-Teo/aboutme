@@ -21,9 +21,4 @@ export type GenerateHandlers = {
     // runtime supports it — WebLLM via XGrammar). The agent planner sets this so
     // tool decisions are guaranteed-valid JSON even on small models.
     json?: boolean
-    // Override the per-generation token budget. Omitted → the engine default.
-    // The chat's final answer sets a large value so long replies aren't truncated;
-    // planning/other callers keep the small default. Bounded anyway by the model's
-    // context window, EOS, and the worker's idle watchdog.
-    maxNewTokens?: number
 }

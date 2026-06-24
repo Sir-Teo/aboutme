@@ -41,13 +41,6 @@ const SUGGESTIONS = ['What does Teo work on?', 'Where did Teo study?', 'Open Teo
 const VISION_ENGINE = visionEngines().find(e => e.id === 'lfm2-vl-1.6b') ?? visionEngines()[0]
 const DESCRIBE_FALLBACK = 'Describe this image in detail.'
 
-// The final answer streams with the cap effectively lifted — a large ceiling so
-// long replies (listing projects, blog topics, publications) aren't truncated
-// mid-sentence. It's still bounded by the model's context window, the EOS token,
-// the Stop button, and the worker's idle watchdog, so generation can't run away.
-// Planning turns (json) keep the small per-engine default.
-const ANSWER_MAX_TOKENS = 4096
-
 // Render assistant markdown with links that open safely in a new tab.
 const MD_COMPONENTS = {
     a: (props: any) => <a {...props} target="_blank" rel="noopener noreferrer" />,
@@ -387,8 +380,6 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                             onReady: () => setProgress(''),
                             onChunk: opts?.onChunk,
                             json: opts?.json,
-                            // Lift the cap for the answer stream; planning (json) keeps the default.
-                            maxNewTokens: opts?.json ? undefined : ANSWER_MAX_TOKENS,
                         }),
                     // Profile/action tools plus any connected MCP server's tools.
                     tools: [...availableTools(toolContext), ...mcpAgentTools()],
