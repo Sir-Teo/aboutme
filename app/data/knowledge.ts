@@ -15,6 +15,21 @@
 // profile.ts, the GitHub profile (github.com/Sir-Teo), Google Scholar, and the
 // research blog (sir-teo.github.io/blogs). Don't add a fact you can't attribute.
 
+// Auto-ingested chunks (GitHub repos + blog posts), refreshed by `npm run ingest`.
+// Kept in a separate committed file so static builds need no network; the lexical
+// retriever below stays on the hand-curated set, while the semantic retriever in
+// app/chat/agent/retrieval.ts reads ALL_KNOWLEDGE (curated + generated).
+import { GENERATED_KNOWLEDGE } from './generated'
+
+// A citable origin for a fact — surfaced under answers so the agent's claims are
+// attributable (and hallucinations are visible). Optional: facts with no single
+// canonical URL (skills, interests) simply don't show a citation.
+export type Source = {
+    // Short label for the source pill, e.g. "GitHub", "Blog", "LinkedIn".
+    label: string
+    url: string
+}
+
 export type KnowledgeChunk = {
     id: string
     // Short human-readable topic, surfaced for debugging/citations later.
@@ -24,6 +39,9 @@ export type KnowledgeChunk = {
     // Extra terms that should match this chunk even when absent from `text`
     // (synonyms, abbreviations, related concepts). Weighted above body terms.
     keywords: string[]
+    // Where this fact comes from. Rendered as a citation when the chunk grounds
+    // an answer. Generated chunks (GitHub repos, blog posts) always carry one.
+    source?: Source
 }
 
 export const KNOWLEDGE: KnowledgeChunk[] = [
@@ -66,6 +84,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'hire',
             'connect',
         ],
+        source: { label: 'Email', url: 'mailto:zengwc.teo2016@outlook.com' },
     },
     {
         id: 'socials',
@@ -92,12 +111,14 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'find online',
             'follow',
         ],
+        source: { label: 'GitHub', url: 'https://github.com/Sir-Teo' },
     },
     {
         id: 'github',
         topic: 'GitHub',
         text: "Teo's GitHub is github.com/Sir-Teo (username Sir-Teo). His profile bio reads: 'I love machine learning and data science and basketball!'",
         keywords: ['github', 'sir-teo', 'code', 'repos', 'repositories', 'open source', 'git'],
+        source: { label: 'GitHub', url: 'https://github.com/Sir-Teo' },
     },
     {
         id: 'blog',
@@ -117,6 +138,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'quantitative finance',
             'quant',
         ],
+        source: { label: 'Blog', url: 'https://sir-teo.github.io/blogs' },
     },
 
     // ─────────────────────────────── Current role ─────────────────────────────
@@ -144,6 +166,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'position',
             'title',
         ],
+        source: { label: 'LinkedIn', url: 'https://www.linkedin.com/in/teozeng' },
     },
     {
         id: 'fare-model',
@@ -411,6 +434,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'co-author',
             'author',
         ],
+        source: { label: 'Google Scholar', url: 'https://scholar.google.com/scholar?q=Weicheng+Zeng+pancreatitis' },
     },
     {
         id: 'pub-crystallography',
@@ -431,6 +455,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'co-author',
             'science',
         ],
+        source: { label: 'Google Scholar', url: 'https://scholar.google.com/scholar?q=Weicheng+Zeng+crystallography' },
     },
     {
         id: 'pub-elder-finance',
@@ -450,6 +475,10 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'aging',
             'social science',
         ],
+        source: {
+            label: 'Google Scholar',
+            url: 'https://scholar.google.com/scholar?q=Weicheng+Zeng+elder+financial+exploitation',
+        },
     },
     {
         id: 'publications-overview',
@@ -467,6 +496,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'co-author',
             'citations',
         ],
+        source: { label: 'Google Scholar', url: 'https://scholar.google.com/scholar?q=Weicheng+Zeng' },
     },
 
     // ─────────────────────────────── Projects ─────────────────────────────────
@@ -601,6 +631,12 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
         keywords: ['travel', 'traveling', 'trips', 'explore', 'places', 'countries'],
     },
 ]
+
+// The full knowledge base the semantic agent grounds on: hand-curated facts plus
+// everything ingested from Teo's public footprint (GitHub repos, blog posts). The
+// lexical `retrieve` below and the homepage pill deliberately stay on the curated
+// KNOWLEDGE only — instant, no embedding, and a stable audit target.
+export const ALL_KNOWLEDGE: KnowledgeChunk[] = [...KNOWLEDGE, ...GENERATED_KNOWLEDGE]
 
 // Lightweight English stopwords — dropped from queries so scoring keys off
 // content words. Kept small on purpose; the goal is signal, not NLP rigor.

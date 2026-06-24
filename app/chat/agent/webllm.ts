@@ -83,7 +83,7 @@ export async function generate(
     messages: ChatMessage[],
     handlers: GenerateHandlers = {}
 ): Promise<string> {
-    const { onChunk, onProgress: onProg, onReady: onRdy, signal, json } = handlers
+    const { onChunk, onProgress: onProg, onReady: onRdy, signal, json, maxNewTokens } = handlers
 
     const unProg = onProg ? onProgress(onProg) : () => undefined
     const unRdy = onRdy ? onReady(onRdy) : () => undefined
@@ -104,7 +104,7 @@ export async function generate(
                 messages: messages as any,
                 stream: true,
                 temperature: 0,
-                max_tokens: engineDef.maxNewTokens,
+                max_tokens: maxNewTokens ?? engineDef.maxNewTokens,
                 // Grammar-constrained JSON when the planner asks for it (XGrammar).
                 ...(json ? { response_format: { type: 'json_object' as const } } : {}),
             })

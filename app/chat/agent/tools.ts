@@ -26,6 +26,70 @@ export type Tool = {
     run: (args: Record<string, any>, ctx: ToolContext) => Promise<string>
 }
 
+// ─────────────────────────── live data (CORS-enabled) ────────────────────────
+// Unlike the baked knowledge base, these tools hit public APIs at runtime so the
+// agent can answer with up-to-the-minute facts — entirely from the browser, no
+// server. Both APIs send `Access-Control-Allow-Origin: *`. Results are cached for
+// the session and every call is time-boxed + failure-tolerant so a flaky network
+// degrades to a graceful note rather than breaking the turn.
+const liveCache = new Map<string, string>()
+
+async function fetchJson(url: string, timeoutMs = 6000): Promise<any> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+        const res = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return await res.json()
+    } finally {
+        clearTimeout(timer)
+    }
+}
+
+async function fetchGithubActivity(): Promise<string> {
+    const key = 'github-activity'
+    const cached = liveCache.get(key)
+    if (cached) return cached
+    try {
+        const repos = await fetchJson('https://api.github.com/users/Sir-Teo/repos?per_page=5&sort=pushed&type=owner')
+        if (!Array.isArray(repos) || repos.length === 0) return 'No recent GitHub activity found.'
+        const lines = repos.slice(0, 5).map((r: any) => {
+            const lang = r.language ? ` (${r.language})` : ''
+            const updated = r.pushed_at ? String(r.pushed_at).slice(0, 10) : 'unknown'
+            return `- ${r.name}${lang}: updated ${updated}, ${r.stargazers_count || 0}★ — ${
+                r.description || 'no description'
+            }`
+        })
+        const out = `Teo's most recently updated GitHub repositories:\n${lines.join('\n')}`
+        liveCache.set(key, out)
+        return out
+    } catch (error) {
+        return `Couldn't reach GitHub just now (${error instanceof Error ? error.message : 'network error'}).`
+    }
+}
+
+async function fetchChessStats(): Promise<string> {
+    const key = 'chess-stats'
+    const cached = liveCache.get(key)
+    if (cached) return cached
+    try {
+        const stats = await fetchJson('https://api.chess.com/pub/player/masterteo1205/stats')
+        const rating = (b: any, label: string) => (b?.last?.rating ? `${label} ${b.last.rating}` : null)
+        const parts = [
+            rating(stats?.chess_rapid, 'Rapid'),
+            rating(stats?.chess_blitz, 'Blitz'),
+            rating(stats?.chess_bullet, 'Bullet'),
+        ].filter(Boolean)
+        const out = parts.length
+            ? `Teo's current Chess.com ratings (masterteo1205): ${parts.join(', ')}.`
+            : 'No current Chess.com ratings are available.'
+        liveCache.set(key, out)
+        return out
+    } catch (error) {
+        return `Couldn't reach Chess.com just now (${error instanceof Error ? error.message : 'network error'}).`
+    }
+}
+
 export const TOOLS: Tool[] = [
     {
         name: 'search_profile',
@@ -88,6 +152,20 @@ export const TOOLS: Tool[] = [
             const hits = await ctx.recallMemory(String(args.query ?? ''))
             return hits.length ? hits.map(h => `- ${h}`).join('\n') : 'No relevant memories.'
         },
+    },
+    {
+        name: 'github_activity',
+        description:
+            "Fetch Teo's LATEST GitHub activity live (his most recently updated repositories, with dates and stars). Use ONLY for current/recent activity — what Teo is working on now, his newest repos — not for general project questions, which search_profile already covers.",
+        parameters: {},
+        run: async () => fetchGithubActivity(),
+    },
+    {
+        name: 'chess_stats',
+        description:
+            "Fetch Teo's CURRENT Chess.com ratings live (rapid, blitz, bullet). Use ONLY when the visitor asks about his present chess rating or how strong he is at chess right now.",
+        parameters: {},
+        run: async () => fetchChessStats(),
     },
 ]
 

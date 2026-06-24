@@ -40,6 +40,7 @@ export function planMessages(
         `- to use a tool: {"tool": "<name>", "args": { ... }}`,
         `- if you already have enough to answer: {"tool": "none"}`,
         `Prefer search_profile before answering questions about Teo.`,
+        `Use github_activity or chess_stats only for live, up-to-date facts (his latest repos, his current chess rating).`,
         `Do not call the same tool with the same args twice.`,
         seen,
     ].join('\n')

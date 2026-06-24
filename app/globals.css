@@ -7,6 +7,140 @@ html {
     -webkit-font-smoothing: antialiased;
 }
 
+/* ─────────────────────────── Ask AI · warm-minimal theme ───────────────────────
+   A small token set (Claude.ai-style) scoped to the playground shell so it stays
+   independent of the homepage's slate palette. Used via arbitrary values, e.g.
+   bg-[var(--c-bg)]. Dark overrides ride the existing `.dark` class. */
+.chat-theme {
+    --c-bg: #faf9f5; /* page canvas */
+    --c-sidebar: #f4f2ec; /* sidebar surface */
+    --c-panel: #ffffff; /* cards / composer */
+    --c-soft: #efece3; /* hover / user bubble */
+    --c-border: #e7e2d6; /* hairlines */
+    --c-text: #2b2825; /* primary text (warm near-black) */
+    --c-muted: #7b746a; /* secondary text */
+    --c-faint: #a89f93; /* tertiary text */
+    --c-accent: #c96442; /* terracotta accent */
+    --c-accent-fg: #ffffff; /* text on accent */
+    --c-accent-soft: #f3e3db; /* accent tint (active nav) */
+}
+
+.dark .chat-theme {
+    --c-bg: #1c1b19;
+    --c-sidebar: #1a1917;
+    --c-panel: #262320;
+    --c-soft: #302c27;
+    --c-border: #38332d;
+    --c-text: #ece7df;
+    --c-muted: #a8a097;
+    --c-faint: #847c72;
+    --c-accent: #d97757;
+    --c-accent-fg: #1c1b19;
+    --c-accent-soft: #38291f;
+}
+
+/* Slim, unobtrusive scrollbars inside the shell. */
+.chat-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--c-border) transparent;
+}
+.chat-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.chat-scroll::-webkit-scrollbar-thumb {
+    background: var(--c-border);
+    border-radius: 9999px;
+}
+.chat-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* Lightweight markdown styling for assistant answers (no typography plugin). */
+.md {
+    line-height: 1.65;
+    word-break: break-word;
+}
+.md > :first-child {
+    margin-top: 0;
+}
+.md > :last-child {
+    margin-bottom: 0;
+}
+.md p {
+    margin: 0.6em 0;
+}
+.md ul,
+.md ol {
+    margin: 0.6em 0;
+    padding-left: 1.35em;
+}
+.md ul {
+    list-style: disc;
+}
+.md ol {
+    list-style: decimal;
+}
+.md li {
+    margin: 0.2em 0;
+}
+.md li::marker {
+    color: var(--c-faint);
+}
+.md h1,
+.md h2,
+.md h3 {
+    margin: 1em 0 0.4em;
+    font-weight: 600;
+    line-height: 1.3;
+}
+.md h1 {
+    font-size: 1.15em;
+}
+.md h2 {
+    font-size: 1.08em;
+}
+.md h3 {
+    font-size: 1em;
+}
+.md a {
+    color: var(--c-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.md code {
+    background: var(--c-soft);
+    border-radius: 4px;
+    padding: 0.1em 0.35em;
+    font-size: 0.88em;
+}
+.md pre {
+    background: var(--c-soft);
+    border: 1px solid var(--c-border);
+    border-radius: 10px;
+    padding: 0.8em 1em;
+    overflow-x: auto;
+    margin: 0.7em 0;
+}
+.md pre code {
+    background: transparent;
+    padding: 0;
+}
+.md blockquote {
+    border-left: 2px solid var(--c-border);
+    margin: 0.7em 0;
+    padding-left: 0.9em;
+    color: var(--c-muted);
+}
+.md strong {
+    font-weight: 600;
+}
+.md hr {
+    border: 0;
+    border-top: 1px solid var(--c-border);
+    margin: 1em 0;
+}
+
 /* Brand-colored link icons (CSS mask filled with each link's --ic color).
    In dark mode, near-black brand colors fall back to a lighter --icd. */
 .link-icon {

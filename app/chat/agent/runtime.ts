@@ -133,7 +133,14 @@ function tfGenerate(
                 handlers.signal.addEventListener('abort', () => w.postMessage({ type: 'stop', id }), { once: true })
             }
         }
-        w.postMessage({ type: 'generate', id, engine: engineConfig(engine), messages, tools })
+        w.postMessage({
+            type: 'generate',
+            id,
+            engine: engineConfig(engine),
+            messages,
+            tools,
+            maxNewTokens: handlers.maxNewTokens,
+        })
     })
 }
 

@@ -26,7 +26,15 @@ type ToolSpec = {
 
 type ModelWorkerRequest =
     | { type: 'warm'; engine: EngineConfig }
-    | { type: 'generate'; id: string; engine: EngineConfig; messages: WorkerChatMessage[]; tools?: ToolSpec[] }
+    | {
+          type: 'generate'
+          id: string
+          engine: EngineConfig
+          messages: WorkerChatMessage[]
+          tools?: ToolSpec[]
+          // Optional per-call override of the engine's default token budget.
+          maxNewTokens?: number
+      }
     | { type: 'stop'; id: string }
     // Free the resident model (GPU buffers) without tearing down the worker.
     | { type: 'dispose' }
@@ -128,7 +136,7 @@ async function loadGenerator(engine: EngineConfig) {
 }
 
 async function runGenerate(request: Extract<ModelWorkerRequest, { type: 'generate' }>) {
-    const { id, engine, messages, tools } = request
+    const { id, engine, messages, tools, maxNewTokens } = request
     try {
         const generator = await loadGenerator(engine)
         const { TextStreamer, InterruptableStoppingCriteria } = await import('@huggingface/transformers')
@@ -164,7 +172,7 @@ async function runGenerate(request: Extract<ModelWorkerRequest, { type: 'generat
         // Tools, when present, are passed through the chat template so the model
         // can emit native JSON function calls (Gemma 4 / LFM2.5 support this).
         const generateOptions: Record<string, unknown> = {
-            max_new_tokens: engine.maxNewTokens,
+            max_new_tokens: maxNewTokens ?? engine.maxNewTokens,
             do_sample: false,
             repetition_penalty: 1.1,
             return_full_text: false,
