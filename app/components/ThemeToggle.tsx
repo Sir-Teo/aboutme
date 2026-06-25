@@ -39,7 +39,7 @@ export default function ThemeToggle() {
             onClick={cycle}
             aria-label={`Theme: ${LABELS[theme]}. Click to switch.`}
             title={`${LABELS[theme]} theme — click to switch`}
-            className="fixed right-4 top-4 z-50 grid h-11 w-11 place-items-center rounded-full bg-white/70 ring-1 ring-slate-200 backdrop-blur transition hover:ring-slate-300 dark:bg-slate-800/70 dark:ring-slate-700 dark:hover:ring-slate-600 sm:h-9 sm:w-9"
+            className="fixed right-4 top-4 z-50 grid h-9 w-9 place-items-center rounded-full bg-white/70 ring-1 ring-slate-200 backdrop-blur transition hover:ring-slate-300 dark:bg-slate-800/70 dark:ring-slate-700 dark:hover:ring-slate-600"
         >
             {theme === 'dark' ? <MoonIcon /> : <SunIcon />}
         </button>

@@ -5,7 +5,7 @@ import Image from 'next/image'
 export default function Home() {
     return (
         <main className="mx-auto max-w-2xl px-5 py-3 sm:px-6 sm:py-10 lg:max-w-3xl lg:py-12">
-            <header className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
+            <header className="flex flex-row items-center gap-4 sm:gap-5">
                 <span className="avatar-ring shrink-0">
                     <Image
                         src={profile.avatar}
@@ -22,7 +22,7 @@ export default function Home() {
                     <h1 className="site-name text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
                         {profile.name}
                     </h1>
-                    <p className="mt-1.5 max-w-md text-[14px] leading-relaxed text-slate-500 dark:text-slate-400 sm:mt-2 sm:text-[15px]">
+                    <p className="mt-1.5 max-w-md text-[14px] leading-snug text-slate-500 dark:text-slate-400 sm:mt-2 sm:text-[15px] sm:leading-relaxed">
                         {profile.tagline}
                     </p>
                 </div>
