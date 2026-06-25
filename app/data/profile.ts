@@ -1,6 +1,14 @@
 // Single source of truth for the site's content.
 // Edit this file to update anything shown on the page.
 
+// The few buckets the chips are grouped into on the homepage. Order here is the
+// order the sections render in.
+export const categories = ['Work & Research', 'Social', 'Play & Hobbies', 'Photography'] as const
+export type LinkCategory = (typeof categories)[number]
+
+// A single metric shown in a chip's hover/focus card (e.g. { label: 'Streak', value: '794 days' }).
+export type LinkStat = { label: string; value: string }
+
 export type LinkItem = {
     label: string
     href?: string // omit/empty to hide the link
@@ -9,6 +17,9 @@ export type LinkItem = {
     colorDark?: string // override for dark mode when the brand color is too dark to read
     qrcode?: string // for QR-only links like WeChat
     handle?: string // for copy-on-click handles with no URL (e.g. Discord)
+    category: LinkCategory // which grouped section the chip lives in
+    meta?: string // short subtitle (handle / id) shown in the hover card
+    stats?: LinkStat[] // optional metrics revealed on hover/focus
 }
 
 export const profile = {
@@ -52,30 +63,42 @@ Writing: Teo keeps a technical research notebook at sir-teo.github.io/blogs with
 
 Interests: traveling, running, basketball and other sports, the board games Go (Weiqi) and chess, research, and video games.`
 
+// Chips are listed grouped by `category` (sections render in `categories` order),
+// and within each group they are ordered by the color of the rainbow — by the hue
+// of each brand `color`, with near-neutral (black/slate) brands trailing each group.
+// `stats` use real public figures (snapshot June 2026); update as they change.
 export const links: LinkItem[] = [
-    { label: 'YouTube', href: 'https://www.youtube.com/@teozeng3999', icon: '/icons/youtube.svg', color: '#FF0000' },
+    // ── Work & Research ──────────────────────────────────────────────
     {
-        label: 'Reddit',
-        href: 'https://www.reddit.com/user/Puzzleheaded_Bid_178/',
-        icon: '/icons/reddit.svg',
-        color: '#FF4500',
+        label: 'LeetCode',
+        href: 'https://leetcode.com/u/user5137/',
+        icon: '/icons/leetcode.svg',
+        color: '#FFA116',
+        category: 'Work & Research',
+        meta: '@user5137',
+        stats: [
+            { label: 'Solved', value: '155' },
+            { label: 'Easy', value: '63' },
+            { label: 'Medium', value: '78' },
+            { label: 'Hard', value: '14' },
+        ],
     },
-    { label: 'Strava', href: 'https://www.strava.com/athletes/206183585', icon: '/icons/strava.svg', color: '#FC4C02' },
     {
-        label: 'Chess.com',
-        href: 'https://www.chess.com/member/masterteo1205',
-        icon: '/icons/chess.svg',
-        color: '#81B64C',
+        label: 'Kaggle',
+        href: 'https://www.kaggle.com/sirteo',
+        icon: '/icons/kaggle.svg',
+        color: '#20BEFF',
+        category: 'Work & Research',
+        meta: '@sirteo',
     },
-    { label: 'WeChat', qrcode: '/user/wechat_qrcode.jpg', icon: '/icons/wechat.svg', color: '#07C160' },
-    { label: 'Kaggle', href: 'https://www.kaggle.com/sirteo', icon: '/icons/kaggle.svg', color: '#20BEFF' },
-    { label: 'Blog', href: 'https://sir-teo.github.io/blogs/', icon: '/icons/blog.svg', color: '#0EA5E9' },
     {
-        label: 'LinkedIn',
-        href: 'https://www.linkedin.com/in/teozeng/',
-        icon: '/icons/linkedin.svg',
-        color: '#0A66C2',
-        colorDark: '#4DA3E4',
+        label: 'Blog',
+        href: 'https://sir-teo.github.io/blogs/',
+        icon: '/icons/blog.svg',
+        color: '#0EA5E9',
+        category: 'Work & Research',
+        meta: 'Research notebook',
+        stats: [{ label: 'Notes', value: '300+' }],
     },
     {
         label: 'Email',
@@ -83,22 +106,145 @@ export const links: LinkItem[] = [
         icon: '/icons/email.svg',
         color: '#0078D4',
         colorDark: '#3FA3F0',
+        category: 'Work & Research',
+        meta: 'zengwc.teo2016@outlook.com',
+    },
+    {
+        label: 'LinkedIn',
+        href: 'https://www.linkedin.com/in/teozeng/',
+        icon: '/icons/linkedin.svg',
+        color: '#0A66C2',
+        colorDark: '#4DA3E4',
+        category: 'Work & Research',
+        meta: 'in/teozeng',
     },
     {
         label: 'Google Scholar',
         href: 'https://scholar.google.com/citations?user=lLhU3igAAAAJ&hl=en',
         icon: '/icons/googlescholar.svg',
         color: '#4285F4',
+        category: 'Work & Research',
+        meta: 'Publications',
     },
-    { label: 'Discord', handle: 'teozeng', icon: '/icons/discord.svg', color: '#5865F2', colorDark: '#8b93f8' },
-    { label: 'Instagram', href: 'https://www.instagram.com/sir_teo', icon: '/icons/instagram.svg', color: '#E4405F' },
-    { label: 'Bilibili', href: 'https://space.bilibili.com/299736746', icon: '/icons/bilibili.svg', color: '#FB7299' },
     {
         label: 'GitHub',
         href: 'https://github.com/Sir-Teo',
         icon: '/icons/github.svg',
         color: '#181717',
         colorDark: '#f0f6fc',
+        category: 'Work & Research',
+        meta: '@Sir-Teo',
+        stats: [
+            { label: 'Repos', value: '82' },
+            { label: 'Followers', value: '25' },
+            { label: 'Since', value: '2017' },
+        ],
+    },
+
+    // ── Social ───────────────────────────────────────────────────────
+    {
+        label: 'YouTube',
+        href: 'https://www.youtube.com/@teozeng3999',
+        icon: '/icons/youtube.svg',
+        color: '#FF0000',
+        category: 'Social',
+        meta: '@teozeng3999',
+    },
+    {
+        label: 'Reddit',
+        href: 'https://www.reddit.com/user/Puzzleheaded_Bid_178/',
+        icon: '/icons/reddit.svg',
+        color: '#FF4500',
+        category: 'Social',
+        meta: 'u/Puzzleheaded_Bid_178',
+    },
+    {
+        label: 'WeChat',
+        qrcode: '/user/wechat_qrcode.jpg',
+        icon: '/icons/wechat.svg',
+        color: '#07C160',
+        category: 'Social',
+        meta: 'Scan to add',
+    },
+    {
+        label: 'Discord',
+        handle: 'teozeng',
+        icon: '/icons/discord.svg',
+        color: '#5865F2',
+        colorDark: '#8b93f8',
+        category: 'Social',
+        meta: 'Click to copy',
+    },
+    {
+        label: 'Bilibili',
+        href: 'https://space.bilibili.com/299736746',
+        icon: '/icons/bilibili.svg',
+        color: '#FB7299',
+        category: 'Social',
+        meta: 'space/299736746',
+    },
+    {
+        label: 'Instagram',
+        href: 'https://www.instagram.com/sir_teo',
+        icon: '/icons/instagram.svg',
+        color: '#E4405F',
+        category: 'Social',
+        meta: '@sir_teo',
+    },
+
+    // ── Play & Hobbies ───────────────────────────────────────────────
+    {
+        label: 'Strava',
+        href: 'https://www.strava.com/athletes/206183585',
+        icon: '/icons/strava.svg',
+        color: '#FC4C02',
+        category: 'Play & Hobbies',
+        meta: 'Athlete 206183585',
+    },
+    {
+        // Clash of Clans has no official public player page; ClashOfStats hosts
+        // the profile by tag.
+        label: 'Clash of Clans',
+        href: 'https://www.clashofstats.com/players/sir_teo-QP8UV90/summary',
+        icon: '/icons/clashofclans.svg',
+        color: '#E9A409',
+        category: 'Play & Hobbies',
+        meta: 'Tag #QP8UV90',
+    },
+    {
+        label: 'Chess.com',
+        href: 'https://www.chess.com/member/masterteo1205',
+        icon: '/icons/chess.svg',
+        color: '#81B64C',
+        category: 'Play & Hobbies',
+        meta: '@masterteo1205',
+        stats: [
+            { label: 'Blitz', value: '427' },
+            { label: 'Rapid', value: '198' },
+            { label: 'Tactics', value: '1506' },
+        ],
+    },
+    {
+        label: 'Duolingo',
+        href: 'https://www.duolingo.com/profile/sirteo',
+        icon: '/icons/duolingo.svg',
+        color: '#58CC02',
+        category: 'Play & Hobbies',
+        meta: '@sirteo',
+        stats: [
+            { label: 'Streak', value: '794 days' },
+            { label: 'XP', value: '121,768' },
+            { label: 'Courses', value: '5' },
+        ],
+    },
+    {
+        label: 'PlayStation',
+        href: 'https://profile.playstation.com/masterteo1205',
+        icon: '/icons/playstation.svg',
+        color: '#0070D1',
+        colorDark: '#4DA3E4',
+        category: 'Play & Hobbies',
+        meta: 'masterteo1205',
     },
     {
         label: 'OGS',
@@ -106,5 +252,30 @@ export const links: LinkItem[] = [
         icon: '/icons/online-go.svg',
         color: '#1F2937',
         colorDark: '#cbd5e1',
+        category: 'Play & Hobbies',
+        meta: 'Go (Weiqi)',
+        stats: [{ label: 'Rating', value: '1708' }],
+    },
+    {
+        label: 'Steam',
+        href: 'https://steamcommunity.com/profiles/76561198413328513/',
+        icon: '/icons/steam.svg',
+        color: '#1B2838',
+        colorDark: '#66C0F4',
+        category: 'Play & Hobbies',
+        meta: 'Master Teo',
+        stats: [{ label: 'Since', value: '2017' }],
+    },
+
+    // ── Photography ──────────────────────────────────────────────────
+    {
+        label: 'Gallery',
+        href: 'https://sir-teo.github.io/gallery/index.html',
+        icon: '/icons/gallery.svg',
+        color: '#7C3AED',
+        colorDark: '#a78bfa',
+        category: 'Photography',
+        meta: 'Personal photo gallery',
+        stats: [{ label: 'Photos', value: '90+' }],
     },
 ]

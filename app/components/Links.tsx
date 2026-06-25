@@ -2,7 +2,7 @@
 import { forwardRef, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import QRCodePopover from './QRCodePopover'
 import Terminal from './Terminal'
-import { links, type LinkItem } from '../data/profile'
+import { categories, links, type LinkItem } from '../data/profile'
 
 export default function Links() {
     const [termOpen, setTermOpen] = useState(false)
@@ -14,24 +14,36 @@ export default function Links() {
     }
     return (
         <>
-            <ul className="flex flex-wrap gap-2">
-                {links.map(link => {
-                    // Skip links with no destination, QR, or handle.
-                    if (!link.href && !link.qrcode && !link.handle) return null
+            {/* overflow-x-clip keeps a right-edge chip's hover card from ever causing a
+                horizontal scrollbar, while overflow-y stays visible so cards pop upward. */}
+            <div className="space-y-7 overflow-x-clip">
+                {/* Chips grouped into a few categories; within each, ordered by rainbow hue. */}
+                {categories.map(category => {
+                    const items = links.filter(
+                        link => link.category === category && (link.href || link.qrcode || link.handle)
+                    )
+                    if (items.length === 0) return null
                     return (
-                        <li key={link.label}>
-                            <LinkChip link={link} />
-                        </li>
+                        <section key={category} aria-label={category}>
+                            <h2 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
+                                {category}
+                            </h2>
+                            <ul className="flex flex-wrap gap-2">
+                                {items.map(link => (
+                                    <li key={link.label}>
+                                        <LinkChip link={link} />
+                                    </li>
+                                ))}
+                            </ul>
+                        </section>
                     )
                 })}
-                {/* Ask AI + Terminal launchers — sit as the last chips. Ask AI links to the full chat page. */}
-                <li>
+                {/* Assistant launchers — Ask AI links to the full chat page; Terminal opens an in-page panel. */}
+                <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-5 dark:border-slate-800">
                     <AskAIChip />
-                </li>
-                <li>
                     <TerminalChip ref={termChipRef} active={termOpen} onClick={() => setTermOpen(o => !o)} />
-                </li>
-            </ul>
+                </div>
+            </div>
             <Terminal open={termOpen} onClose={closeTerm} />
         </>
     )
@@ -101,29 +113,71 @@ const TerminalChip = forwardRef<HTMLButtonElement, { active: boolean; onClick: (
     )
 })
 
+// The brand icon as a CSS-mask silhouette tinted to the link's --ic / --icd color.
+function IconMask({ link, className = 'h-4 w-4' }: { link: LinkItem; className?: string }) {
+    return (
+        <span
+            aria-hidden
+            className={`link-icon shrink-0 ${className}`}
+            style={
+                {
+                    '--ic': link.color,
+                    '--icd': link.colorDark,
+                    maskImage: `url(${link.icon})`,
+                    WebkitMaskImage: `url(${link.icon})`,
+                    maskRepeat: 'no-repeat',
+                    WebkitMaskRepeat: 'no-repeat',
+                    maskPosition: 'center',
+                    WebkitMaskPosition: 'center',
+                    maskSize: 'contain',
+                    WebkitMaskSize: 'contain',
+                } as CSSProperties
+            }
+        />
+    )
+}
+
 function ChipInner({ link }: { link: LinkItem }) {
     return (
         <span className="group inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:ring-slate-300 dark:bg-slate-800 dark:ring-slate-700 dark:hover:ring-slate-600">
-            <span
-                aria-hidden
-                className="link-icon h-4 w-4 shrink-0"
-                style={
-                    {
-                        '--ic': link.color,
-                        '--icd': link.colorDark,
-                        maskImage: `url(${link.icon})`,
-                        WebkitMaskImage: `url(${link.icon})`,
-                        maskRepeat: 'no-repeat',
-                        WebkitMaskRepeat: 'no-repeat',
-                        maskPosition: 'center',
-                        WebkitMaskPosition: 'center',
-                        maskSize: 'contain',
-                        WebkitMaskSize: 'contain',
-                    } as CSSProperties
-                }
-            />
+            <IconMask link={link} />
             <span className="text-slate-700 dark:text-slate-200">{link.label}</span>
         </span>
+    )
+}
+
+// Hover/focus card that reveals a handle and any public stats (XP, streak, rating…).
+// Opens upward, anchored to the chip; the pb-2 acts as a hover bridge so it doesn't flicker.
+function StatCard({ link }: { link: LinkItem }) {
+    return (
+        <div
+            role="tooltip"
+            className="pointer-events-none absolute bottom-full left-0 z-20 translate-y-1 pb-2 opacity-0 transition duration-150 ease-out group-hover/chip:pointer-events-auto group-hover/chip:translate-y-0 group-hover/chip:opacity-100 group-focus-within/chip:pointer-events-auto group-focus-within/chip:translate-y-0 group-focus-within/chip:opacity-100"
+        >
+            <div className="w-max max-w-[15rem] rounded-xl bg-white/95 p-3 text-left shadow-lg ring-1 ring-slate-200 backdrop-blur dark:bg-slate-800/95 dark:ring-slate-700">
+                <div className="flex items-center gap-2">
+                    <IconMask link={link} className="h-3.5 w-3.5" />
+                    <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{link.label}</span>
+                </div>
+                {link.meta && (
+                    <p className="mt-0.5 break-words text-xs text-slate-400 dark:text-slate-500">{link.meta}</p>
+                )}
+                {link.stats && link.stats.length > 0 && (
+                    <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                        {link.stats.map(stat => (
+                            <div key={stat.label} className="flex flex-col">
+                                <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                                    {stat.label}
+                                </dt>
+                                <dd className="text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                                    {stat.value}
+                                </dd>
+                            </div>
+                        ))}
+                    </dl>
+                )}
+            </div>
+        </div>
     )
 }
 
@@ -133,6 +187,8 @@ function LinkChip({ link }: { link: LinkItem }) {
     const qrPopoverId = useId()
     const qrWrapRef = useRef<HTMLDivElement>(null)
     const copyResetRef = useRef<number | null>(null)
+    // Standard links get a hover/focus stats card; QR chips own their click popover instead.
+    const showCard = !link.qrcode && Boolean(link.meta || link.stats?.length)
 
     useEffect(() => {
         return () => {
@@ -204,21 +260,27 @@ function LinkChip({ link }: { link: LinkItem }) {
                 ? { ...link, label: handle }
                 : link
         return (
-            <button
-                type="button"
-                onClick={copy}
-                aria-label={`Copy ${link.label} handle ${handle}`}
-                title={`${handle} - click to copy`}
-                className="cursor-pointer"
-            >
-                <ChipInner link={visibleLink} />
-            </button>
+            <div className="group/chip relative inline-block">
+                <button
+                    type="button"
+                    onClick={copy}
+                    aria-label={`Copy ${link.label} handle ${handle}`}
+                    title={`${handle} - click to copy`}
+                    className="cursor-pointer"
+                >
+                    <ChipInner link={visibleLink} />
+                </button>
+                {showCard && <StatCard link={link} />}
+            </div>
         )
     }
 
     return (
-        <a href={link.href} target="_blank" rel="noopener noreferrer">
-            <ChipInner link={link} />
-        </a>
+        <div className="group/chip relative inline-block">
+            <a href={link.href} target="_blank" rel="noopener noreferrer">
+                <ChipInner link={link} />
+            </a>
+            {showCard && <StatCard link={link} />}
+        </div>
     )
 }
