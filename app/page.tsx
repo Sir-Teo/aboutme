@@ -4,7 +4,7 @@ import Image from 'next/image'
 
 export default function Home() {
     return (
-        <main className="mx-auto max-w-2xl px-5 py-3 sm:px-6 sm:py-10 lg:py-12">
+        <main className="mx-auto max-w-2xl px-5 py-3 sm:px-6 sm:py-10 lg:max-w-3xl lg:py-12">
             <header className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
                 <span className="avatar-ring shrink-0">
                     <Image

@@ -52,7 +52,7 @@ export default function Links() {
                     if (items.length === 0) return null
                     return (
                         <section key={category} aria-label={category}>
-                            <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 sm:mb-2 sm:text-[11px]">
+                            <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 sm:mb-2">
                                 {category}
                             </h2>
                             <ul className="flex flex-wrap gap-2">
@@ -83,7 +83,7 @@ function AskAIChip() {
             href="/chat"
             aria-label="Open Ask AI chat"
             title="Ask an on-device AI about Teo"
-            className="group inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] text-slate-700 ring-1 ring-slate-200 transition active:scale-[0.97] hover:ring-slate-300 motion-safe:hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:ring-slate-600 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-950 sm:gap-2 sm:text-sm"
+            className="group inline-flex min-h-[2.75rem] items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] text-slate-700 ring-1 ring-slate-200 transition active:scale-[0.97] hover:ring-slate-300 motion-safe:hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:ring-slate-600 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-950 sm:min-h-0 sm:gap-2 sm:text-sm"
         >
             <svg
                 viewBox="0 0 24 24"
@@ -115,7 +115,7 @@ const TerminalChip = forwardRef<HTMLButtonElement, { active: boolean; onClick: (
             aria-expanded={active}
             aria-label={active ? 'Close terminal' : 'Open terminal'}
             title="Toggle interactive terminal"
-            className={`group inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] ring-1 transition active:scale-[0.97] motion-safe:hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-950 sm:gap-2 sm:text-sm ${
+            className={`group inline-flex min-h-[2.75rem] items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] ring-1 transition active:scale-[0.97] motion-safe:hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-950 sm:min-h-0 sm:gap-2 sm:text-sm ${
                 active
                     ? 'bg-slate-900 text-slate-100 ring-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-300'
                     : 'bg-white text-slate-700 ring-slate-200 hover:ring-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:ring-slate-600'
@@ -165,10 +165,22 @@ function IconMask({ link, className = 'h-4 w-4' }: { link: LinkItem; className?:
 }
 
 function ChipInner({ link }: { link: LinkItem }) {
+    // Chips that reveal a stats card get a faint dotted underline — the conventional
+    // "more on hover/tap" affordance — so the hidden detail is discoverable on
+    // desktop and the tap-to-reveal is expected on touch, without adding chrome.
+    const hasCard = Boolean(link.stats?.length)
     return (
-        <span className="group inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] ring-1 ring-slate-200 transition active:scale-[0.97] hover:ring-slate-300 motion-safe:hover:-translate-y-0.5 dark:bg-slate-800 dark:ring-slate-700 dark:hover:ring-slate-600 sm:gap-2 sm:text-sm">
+        <span className="group inline-flex min-h-[2.75rem] items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] ring-1 ring-slate-200 transition active:scale-[0.97] hover:ring-slate-300 motion-safe:hover:-translate-y-0.5 dark:bg-slate-800 dark:ring-slate-700 dark:hover:ring-slate-600 sm:min-h-0 sm:gap-2 sm:text-sm">
             <IconMask link={link} className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="text-slate-700 dark:text-slate-200">{link.label}</span>
+            <span
+                className={`text-slate-700 dark:text-slate-200${
+                    hasCard
+                        ? ' underline decoration-slate-300 decoration-dotted decoration-1 underline-offset-[3px] transition-colors group-hover:decoration-slate-400 dark:decoration-slate-600 dark:group-hover:decoration-slate-500'
+                        : ''
+                }`}
+            >
+                {link.label}
+            </span>
         </span>
     )
 }

@@ -30,7 +30,7 @@ export default function Playground() {
 
     return (
         <div className="chat-theme flex h-[100dvh] flex-col bg-[var(--c-bg)] text-[var(--c-text)]">
-            <header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--c-border)] px-4 pr-16 sm:px-6">
+            <header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--c-border)] px-4 pr-20 sm:px-6 sm:pr-16">
                 <Link
                     href="/"
                     className="flex items-center gap-1.5 text-[13px] text-[var(--c-muted)] transition-colors hover:text-[var(--c-text)]"
