@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { profile, links } from '../data/profile'
 import type { Source } from '../data/knowledge'
@@ -28,22 +28,64 @@ import {
     subscribeMemory,
     type Memory,
 } from './agent/memory'
+import ChatHistory from './ChatHistory'
+import {
+    listThreads,
+    saveThread,
+    deleteThread,
+    clearThreads,
+    subscribeThreads,
+    titleFor,
+    type Thread,
+    type GenStats,
+} from './agent/history'
 
 type Role = 'user' | 'assistant'
 // Messages are multi-part (frontier-style content blocks): text plus an optional
-// attached image (data URL) shown as a thumbnail, plus citation sources.
-type Msg = { role: Role; content: string; sources?: Source[]; image?: string }
+// attached image (data URL) shown as a thumbnail, plus citation sources, plus
+// the turn's on-device generation telemetry (tokens/sec, time-to-first-token).
+type Msg = { role: Role; content: string; sources?: Source[]; image?: string; stats?: GenStats }
 
 const SUGGESTIONS = ['What does Teo work on?', 'Where did Teo study?', 'Open Teo’s GitHub']
+// Generic, content-light prompts offered under the latest answer to keep a
+// conversation moving without spending a model call to invent them.
+const FOLLOW_UPS = ['Tell me more', 'Why does that matter?', 'Can you give an example?']
 
 // The vision model used for image turns — the lightest VLM (~1.2 GB) so swapping
 // in for an image question and back out stays affordable on-device.
 const VISION_ENGINE = visionEngines().find(e => e.id === 'lfm2-vl-1.6b') ?? visionEngines()[0]
 const DESCRIBE_FALLBACK = 'Describe this image in detail.'
 
-// Render assistant markdown with links that open safely in a new tab.
+// A fenced code block with a hover "Copy" button. Reads the rendered text off
+// the <pre> so it works regardless of the markdown's nested node shape.
+function CodeBlock({ children }: { children?: ReactNode }) {
+    const ref = useRef<HTMLPreElement | null>(null)
+    const [copied, setCopied] = useState(false)
+    const copy = () => {
+        const text = ref.current?.innerText ?? ''
+        navigator.clipboard
+            ?.writeText(text)
+            .then(() => {
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1200)
+            })
+            .catch(() => {})
+    }
+    return (
+        <div className="md-code">
+            <button type="button" onClick={copy} className="md-code-copy" aria-label="Copy code">
+                {copied ? 'Copied' : 'Copy'}
+            </button>
+            <pre ref={ref}>{children}</pre>
+        </div>
+    )
+}
+
+// Render assistant markdown with links that open safely in a new tab, and code
+// blocks that carry a copy button.
 const MD_COMPONENTS = {
     a: (props: any) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+    pre: (props: any) => <CodeBlock>{props.children}</CodeBlock>,
 }
 
 // One big model resident at a time: before running a heavy model, free the others'
@@ -113,6 +155,12 @@ export default function AgentChat({ engine }: { engine: Engine }) {
     const [progress, setProgress] = useState('')
     const [memories, setMemories] = useState<Memory[]>([])
     const [showMemory, setShowMemory] = useState(false)
+    // Persisted conversation history (this device only) + the drawer that lists it.
+    const [threads, setThreads] = useState<Thread[]>([])
+    const [showHistory, setShowHistory] = useState(false)
+    // Per-message copy feedback (✓ for a moment) + smart-scroll affordance.
+    const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+    const [atBottom, setAtBottom] = useState(true)
     // Composer "+" attachments. An image is consumed by the next turn (routed to a
     // VLM); a document stays active and grounds answers until removed.
     const [plusOpen, setPlusOpen] = useState(false)
@@ -142,6 +190,12 @@ export default function AgentChat({ engine }: { engine: Engine }) {
     const plusRef = useRef<HTMLDivElement | null>(null)
     const abortRef = useRef<AbortController | null>(null)
     const scrollRef = useRef<HTMLDivElement | null>(null)
+    const composerRef = useRef<HTMLTextAreaElement | null>(null)
+    // Generation telemetry for the in-flight turn: start, first-token time, and a
+    // running streamed-chunk count (≈ tokens) → tokens/sec + time-to-first-token.
+    const genStart = useRef(0)
+    const genFirst = useRef(0)
+    const genTokens = useRef(0)
     speakRef.current = speakAnswers
     // Sources behind the grounding for the in-flight turn — captured in the
     // grounding closure, attached to the assistant message once the turn settles.
@@ -225,11 +279,50 @@ export default function AgentChat({ engine }: { engine: Engine }) {
         return () => document.removeEventListener('mousedown', onDoc)
     }, [plusOpen, menuOpen])
 
-    // Auto-scroll the transcript as it grows.
+    // Auto-scroll the transcript as it grows — but only when the reader is already
+    // near the bottom, so scrolling up to re-read isn't yanked back down.
     useEffect(() => {
         const el = scrollRef.current
+        if (el && atBottom) el.scrollTop = el.scrollHeight
+    }, [messages, progress, atBottom])
+
+    // Track whether we're pinned to the bottom (drives the jump-to-latest pill).
+    const onScroll = useCallback(() => {
+        const el = scrollRef.current
+        if (el) setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80)
+    }, [])
+
+    const scrollToBottom = useCallback(() => {
+        const el = scrollRef.current
         if (el) el.scrollTop = el.scrollHeight
-    }, [messages, progress])
+        setAtBottom(true)
+    }, [])
+
+    // Load saved conversations and keep the drawer in sync with the store.
+    useEffect(() => {
+        let alive = true
+        const refresh = () => listThreads().then(t => alive && setThreads(t))
+        refresh()
+        const unsubscribe = subscribeThreads(refresh)
+        return () => {
+            alive = false
+            unsubscribe()
+        }
+    }, [])
+
+    // Autosave the live transcript to this device whenever a turn settles.
+    useEffect(() => {
+        if (streaming || messages.length === 0) return
+        void saveThread({ id: threadId.current, title: titleFor(messages), updatedAt: Date.now(), messages })
+    }, [messages, streaming])
+
+    // Auto-grow the composer with its content (height capped by the max-h class).
+    useEffect(() => {
+        const el = composerRef.current
+        if (!el) return
+        el.style.height = '0px'
+        el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+    }, [input])
 
     // Keep the memory panel in sync with the on-device store (persists across
     // reloads; updates whenever the agent remembers/forgets something).
@@ -305,24 +398,27 @@ export default function AgentChat({ engine }: { engine: Engine }) {
         []
     )
 
-    const send = useCallback(
-        async (text: string) => {
-            const query = text.trim()
-            const image = pendingImage
-            if ((!query && !image) || streaming || gpu !== 'ready') return
-            setInput('')
-            setProgress('')
-            setPendingImage(null)
+    // The generation core for one assistant turn. send() and regenerate() set up
+    // the user/assistant messages, then hand off here to drive the right model
+    // path (image-gen / vision / agent text) and attach citations + telemetry.
+    const runAssistantTurn = useCallback(
+        async ({
+            query,
+            image,
+            priorHistory,
+            assistantIndex,
+            controller,
+        }: {
+            query: string
+            image: string | null
+            priorHistory: ChatMessage[]
+            assistantIndex: number
+            controller: AbortController
+        }) => {
             turnSources.current = []
-
-            const priorHistory = messages.map(m => ({ role: m.role, content: m.content } as ChatMessage))
-            const userMsg: Msg = { role: 'user', content: query || (image ? '(image)' : ''), image: image ?? undefined }
-            setMessages([...messages, userMsg, { role: 'assistant', content: '' }])
-            setStreaming(true)
-
-            const controller = new AbortController()
-            abortRef.current = controller
-            const assistantIndex = messages.length + 1
+            genStart.current = performance.now()
+            genFirst.current = 0
+            genTokens.current = 0
 
             let answerText = ''
             const appendToAnswer = (chunk: string) =>
@@ -333,6 +429,8 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                     return next
                 })
             const onAnswerChunk = (chunk: string) => {
+                if (!genFirst.current) genFirst.current = performance.now()
+                genTokens.current += 1
                 setProgress('')
                 answerText += chunk
                 appendToAnswer(chunk)
@@ -344,6 +442,22 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                     if (cur && cur.role === 'assistant') next[assistantIndex] = { ...cur, image: url }
                     return next
                 })
+            // Attach tokens/sec + time-to-first-token once a streamed turn settles.
+            const attachStats = () => {
+                if (!genFirst.current || genTokens.current < 2) return
+                const secs = (performance.now() - genFirst.current) / 1000
+                const stats: GenStats = {
+                    tps: secs > 0 ? genTokens.current / secs : 0,
+                    ttftMs: genFirst.current - genStart.current,
+                    tokens: genTokens.current,
+                }
+                setMessages(prev => {
+                    const next = prev.slice()
+                    const cur = next[assistantIndex]
+                    if (cur && cur.role === 'assistant') next[assistantIndex] = { ...cur, stats }
+                    return next
+                })
+            }
 
             try {
                 // ── Generate-image turn → SD-Turbo paints into the thread ─────────
@@ -366,6 +480,7 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                         onReady: () => setProgress(''),
                         onChunk: onAnswerChunk,
                     })
+                    attachStats()
                     if (speakRef.current && answerText.trim()) await speakText(answerText)
                     return
                 }
@@ -430,6 +545,7 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                         return next
                     })
                 }
+                attachStats()
                 if (speakRef.current && answerText.trim()) await speakText(answerText)
             } catch (error) {
                 setMessages(prev => {
@@ -447,8 +563,82 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                 abortRef.current = null
             }
         },
-        [engine, gpu, messages, streaming, toolContext, pendingImage, genMode, tone, mcpAgentTools, speakText]
+        [engine, genMode, tone, toolContext, mcpAgentTools, speakText]
     )
+
+    const send = useCallback(
+        async (text: string) => {
+            const query = text.trim()
+            const image = pendingImage
+            if ((!query && !image) || streaming || gpu !== 'ready') return
+            setInput('')
+            setProgress('')
+            setPendingImage(null)
+            const priorHistory = messages.map(m => ({ role: m.role, content: m.content } as ChatMessage))
+            const userMsg: Msg = { role: 'user', content: query || (image ? '(image)' : ''), image: image ?? undefined }
+            setMessages([...messages, userMsg, { role: 'assistant', content: '' }])
+            setStreaming(true)
+            setAtBottom(true)
+            const controller = new AbortController()
+            abortRef.current = controller
+            await runAssistantTurn({ query, image, priorHistory, assistantIndex: messages.length + 1, controller })
+        },
+        [pendingImage, streaming, gpu, messages, runAssistantTurn]
+    )
+
+    // Re-run the most recent user turn, replacing the last answer in place.
+    const regenerate = useCallback(async () => {
+        if (streaming || gpu !== 'ready') return
+        let userIdx = -1
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === 'user') {
+                userIdx = i
+                break
+            }
+        }
+        if (userIdx < 0) return
+        const userMsg = messages[userIdx]
+        const priorHistory = messages.slice(0, userIdx).map(m => ({ role: m.role, content: m.content } as ChatMessage))
+        const base = messages.slice(0, userIdx + 1)
+        setMessages([...base, { role: 'assistant', content: '' }])
+        setStreaming(true)
+        setAtBottom(true)
+        const controller = new AbortController()
+        abortRef.current = controller
+        await runAssistantTurn({
+            query: userMsg.content === '(image)' ? '' : userMsg.content,
+            image: userMsg.image ?? null,
+            priorHistory,
+            assistantIndex: base.length,
+            controller,
+        })
+    }, [messages, streaming, gpu, runAssistantTurn])
+
+    // Edit a previous question: drop it (and everything after) back into the
+    // composer so it can be reworded and sent again.
+    const editMessage = useCallback(
+        (index: number) => {
+            if (streaming) return
+            const m = messages[index]
+            if (!m || m.role !== 'user') return
+            setInput(m.content === '(image)' ? '' : m.content)
+            if (m.image) setPendingImage(m.image)
+            setMessages(messages.slice(0, index))
+            setTimeout(() => composerRef.current?.focus(), 0)
+        },
+        [messages, streaming]
+    )
+
+    // Copy a message's text, with a brief ✓ on the button.
+    const copyMessage = useCallback((index: number, text: string) => {
+        navigator.clipboard
+            ?.writeText(text)
+            .then(() => {
+                setCopiedIdx(index)
+                setTimeout(() => setCopiedIdx(c => (c === index ? null : c)), 1200)
+            })
+            .catch(() => {})
+    }, [])
 
     const stop = useCallback(() => {
         abortRef.current?.abort()
@@ -568,6 +758,9 @@ export default function AgentChat({ engine }: { engine: Engine }) {
 
     const newChat = useCallback(() => {
         if (streaming) abortRef.current?.abort()
+        // A fresh thread id so the next conversation saves separately from this one
+        // (which the autosave effect has already persisted).
+        threadId.current = `t-${Date.now().toString(36)}`
         setMessages([])
         setInput('')
         setProgress('')
@@ -575,7 +768,41 @@ export default function AgentChat({ engine }: { engine: Engine }) {
         removeDoc()
         setGenMode(false)
         setPlusOpen(false)
+        setShowHistory(false)
+        setAtBottom(true)
     }, [streaming, removeDoc])
+
+    // Open a saved conversation: it becomes the live thread (further turns extend
+    // and re-save it under the same id).
+    const loadThread = useCallback(
+        (thread: Thread) => {
+            if (streaming) abortRef.current?.abort()
+            threadId.current = thread.id
+            setMessages(thread.messages as Msg[])
+            setInput('')
+            setProgress('')
+            setPendingImage(null)
+            removeDoc()
+            setGenMode(false)
+            setShowHistory(false)
+            setAtBottom(true)
+        },
+        [streaming, removeDoc]
+    )
+
+    // Delete one saved conversation; if it's the live one, fall back to a new chat.
+    const removeThread = useCallback(
+        (id: string) => {
+            void deleteThread(id)
+            if (id === threadId.current) newChat()
+        },
+        [newChat]
+    )
+
+    const clearAllThreads = useCallback(() => {
+        void clearThreads()
+        newChat()
+    }, [newChat])
 
     // Download the conversation as a Markdown transcript (stays on-device).
     const exportChat = useCallback(() => {
@@ -614,9 +841,28 @@ export default function AgentChat({ engine }: { engine: Engine }) {
     }
 
     return (
-        <div className="flex h-full flex-col">
-            {/* Quiet top-right controls: new chat + a single ⋯ overflow menu. */}
-            <div className="flex items-center justify-end gap-0.5 px-2 pt-2 sm:px-3">
+        <div className="relative flex h-full flex-col">
+            {/* Quiet controls: history (left) · new chat + a single ⋯ menu (right). */}
+            <div className="flex items-center gap-0.5 px-2 pt-2 sm:px-3">
+                <button
+                    type="button"
+                    onClick={() => setShowHistory(true)}
+                    title="Conversation history"
+                    aria-label="Conversation history"
+                    className="mr-auto grid h-8 w-8 place-items-center rounded-lg text-[var(--c-muted)] transition hover:bg-[var(--c-soft)] hover:text-[var(--c-text)]"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        className="h-[18px] w-[18px]"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        aria-hidden
+                    >
+                        <path d="M3 12a9 9 0 1 0 3-6.7M3 5v3h3" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M12 8v4l2.5 1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                </button>
                 {!empty && (
                     <button
                         type="button"
@@ -704,6 +950,16 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                 </div>
             </div>
 
+            <ChatHistory
+                open={showHistory}
+                threads={threads}
+                activeId={threadId.current}
+                onSelect={loadThread}
+                onDelete={removeThread}
+                onClear={clearAllThreads}
+                onClose={() => setShowHistory(false)}
+            />
+
             {showMemory && (
                 <div className="mx-auto mt-1 w-full max-w-3xl px-4 sm:px-6">
                     <div className="rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] px-3.5 py-3">
@@ -751,7 +1007,7 @@ export default function AgentChat({ engine }: { engine: Engine }) {
             )}
 
             {/* Conversation */}
-            <div ref={scrollRef} className="chat-scroll min-h-0 flex-1 overflow-y-auto">
+            <div ref={scrollRef} onScroll={onScroll} className="chat-scroll min-h-0 flex-1 overflow-y-auto">
                 {empty ? (
                     <div className="grid h-full place-items-center px-4">
                         <div className="w-full max-w-2xl text-center">
@@ -777,13 +1033,17 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                         </div>
                     </div>
                 ) : (
-                    <div className="mx-auto max-w-3xl space-y-5 px-4 py-5 text-[15px] sm:px-6">
+                    <div
+                        className="mx-auto max-w-3xl space-y-5 px-4 py-5 text-[15px] sm:px-6"
+                        aria-live="polite"
+                        aria-atomic="false"
+                    >
                         {messages.map((m, i) => {
                             const isLast = i === messages.length - 1
                             const showDots = m.role === 'assistant' && isLast && streaming && !m.content
                             if (m.role === 'user') {
                                 return (
-                                    <div key={i} className="flex flex-col items-end gap-1.5">
+                                    <div key={i} className="group flex flex-col items-end gap-1.5">
                                         {m.image && (
                                             // eslint-disable-next-line @next/next/no-img-element
                                             <img
@@ -797,11 +1057,21 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                                                 {m.content}
                                             </div>
                                         )}
+                                        {!streaming && (
+                                            <button
+                                                type="button"
+                                                onClick={() => editMessage(i)}
+                                                className="text-[11px] text-[var(--c-faint)] opacity-0 transition hover:text-[var(--c-text)] group-hover:opacity-100"
+                                            >
+                                                Edit
+                                            </button>
+                                        )}
                                     </div>
                                 )
                             }
+                            const settled = !streaming || !isLast
                             return (
-                                <div key={i} className="text-[var(--c-text)]">
+                                <div key={i} className="group text-[var(--c-text)]">
                                     {showDots ? (
                                         <span className="inline-flex gap-1 text-[var(--c-faint)]">
                                             <span className="animate-bounce">•</span>
@@ -843,6 +1113,48 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                                             ))}
                                         </div>
                                     )}
+                                    {/* Per-answer actions + on-device telemetry, kept quiet until hover. */}
+                                    {settled && m.content && (
+                                        <div className="mt-1.5 flex items-center gap-2.5 text-[11px] text-[var(--c-faint)] opacity-0 transition group-hover:opacity-100">
+                                            <button
+                                                type="button"
+                                                onClick={() => copyMessage(i, m.content)}
+                                                className="transition hover:text-[var(--c-text)]"
+                                            >
+                                                {copiedIdx === i ? 'Copied' : 'Copy'}
+                                            </button>
+                                            {isLast && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void regenerate()}
+                                                    className="transition hover:text-[var(--c-text)]"
+                                                >
+                                                    Regenerate
+                                                </button>
+                                            )}
+                                            {m.stats && (
+                                                <span title="Measured on your device">
+                                                    {Math.round(m.stats.tps)} tok/s ·{' '}
+                                                    {(m.stats.ttftMs / 1000).toFixed(1)}s to first token
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                    {/* Follow-up prompts under the latest settled answer. */}
+                                    {settled && isLast && m.content && (
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            {FOLLOW_UPS.map(f => (
+                                                <button
+                                                    key={f}
+                                                    type="button"
+                                                    onClick={() => send(f)}
+                                                    className="rounded-full border border-[var(--c-border)] bg-[var(--c-panel)] px-3 py-1 text-[12px] text-[var(--c-muted)] transition hover:border-[var(--c-accent)] hover:text-[var(--c-text)]"
+                                                >
+                                                    {f}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )
                         })}
@@ -850,6 +1162,27 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                     </div>
                 )}
             </div>
+
+            {/* Jump-to-latest — only when scrolled up out of the live region. */}
+            {!empty && !atBottom && (
+                <button
+                    type="button"
+                    onClick={scrollToBottom}
+                    aria-label="Scroll to latest"
+                    className="absolute bottom-24 left-1/2 z-10 grid h-9 w-9 -translate-x-1/2 place-items-center rounded-full border border-[var(--c-border)] bg-[var(--c-panel)] text-[var(--c-muted)] shadow-md transition hover:text-[var(--c-text)]"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        className="h-[18px] w-[18px]"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        aria-hidden
+                    >
+                        <path d="M12 5v14M6 13l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                </button>
+            )}
 
             {/* Composer */}
             <div className="px-3 pb-4 pt-2 sm:px-6">
@@ -1121,9 +1454,18 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                             </svg>
                         </button>
 
-                        <input
+                        <textarea
+                            ref={composerRef}
                             value={input}
                             onChange={e => setInput(e.target.value)}
+                            onKeyDown={e => {
+                                // Enter sends; Shift+Enter (or IME composition) inserts a newline.
+                                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                                    e.preventDefault()
+                                    send(input)
+                                }
+                            }}
+                            rows={1}
                             placeholder={
                                 streaming
                                     ? 'Thinking…'
@@ -1139,7 +1481,7 @@ export default function AgentChat({ engine }: { engine: Engine }) {
                             spellCheck={false}
                             enterKeyHint="send"
                             aria-label="Chat input"
-                            className="flex-1 bg-transparent py-1.5 text-[15px] text-[var(--c-text)] outline-none placeholder:text-[var(--c-faint)] disabled:opacity-60"
+                            className="max-h-40 flex-1 resize-none bg-transparent py-1.5 text-[15px] leading-relaxed text-[var(--c-text)] outline-none placeholder:text-[var(--c-faint)] disabled:opacity-60"
                         />
                         {streaming ? (
                             <button

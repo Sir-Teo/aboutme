@@ -141,6 +141,31 @@ html {
     margin: 1em 0;
 }
 
+/* Fenced code block with a hover copy button (see CodeBlock in AgentChat). */
+.md-code {
+    position: relative;
+}
+.md-code-copy {
+    position: absolute;
+    top: 0.5em;
+    right: 0.5em;
+    padding: 0.15em 0.5em;
+    border-radius: 6px;
+    border: 1px solid var(--c-border);
+    background: var(--c-panel);
+    color: var(--c-muted);
+    font-size: 11px;
+    line-height: 1.4;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+}
+.md-code:hover .md-code-copy {
+    opacity: 1;
+}
+.md-code-copy:hover {
+    color: var(--c-text);
+}
+
 /* Brand-colored link icons (CSS mask filled with each link's --ic color).
    In dark mode, near-black brand colors fall back to a lighter --icd. */
 .link-icon {
