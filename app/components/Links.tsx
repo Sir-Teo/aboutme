@@ -165,22 +165,10 @@ function IconMask({ link, className = 'h-4 w-4' }: { link: LinkItem; className?:
 }
 
 function ChipInner({ link }: { link: LinkItem }) {
-    // Chips that reveal a stats card get a faint dotted underline — the conventional
-    // "more on hover/tap" affordance — so the hidden detail is discoverable on
-    // desktop and the tap-to-reveal is expected on touch, without adding chrome.
-    const hasCard = Boolean(link.stats?.length)
     return (
         <span className="group inline-flex min-h-[2.75rem] items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] ring-1 ring-slate-200 transition active:scale-[0.97] hover:ring-slate-300 motion-safe:hover:-translate-y-0.5 dark:bg-slate-800 dark:ring-slate-700 dark:hover:ring-slate-600 sm:min-h-0 sm:gap-2 sm:text-sm">
             <IconMask link={link} className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span
-                className={`text-slate-700 dark:text-slate-200${
-                    hasCard
-                        ? ' underline decoration-slate-300 decoration-dotted decoration-1 underline-offset-[3px] transition-colors group-hover:decoration-slate-400 dark:decoration-slate-600 dark:group-hover:decoration-slate-500'
-                        : ''
-                }`}
-            >
-                {link.label}
-            </span>
+            <span className="text-slate-700 dark:text-slate-200">{link.label}</span>
         </span>
     )
 }
