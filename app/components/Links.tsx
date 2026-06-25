@@ -14,6 +14,25 @@ import QRCodePopover from './QRCodePopover'
 import Terminal from './Terminal'
 import { categories, links, type LinkItem } from '../data/profile'
 
+// Keyboard focus ring shared by every chip so tab-navigation is clearly visible
+// without affecting the resting (mouse) look.
+const FOCUS_RING =
+    'rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-950'
+
+// True when the primary pointer can hover (a desktop mouse). On touch devices it
+// is false, so the stat cards switch from hover-reveal to tap-reveal.
+function useCanHover() {
+    const [canHover, setCanHover] = useState(true)
+    useEffect(() => {
+        const mq = window.matchMedia('(hover: hover)')
+        const update = () => setCanHover(mq.matches)
+        update()
+        mq.addEventListener('change', update)
+        return () => mq.removeEventListener('change', update)
+    }, [])
+    return canHover
+}
+
 export default function Links() {
     const [termOpen, setTermOpen] = useState(false)
     const termChipRef = useRef<HTMLButtonElement>(null)
@@ -33,10 +52,10 @@ export default function Links() {
                     if (items.length === 0) return null
                     return (
                         <section key={category} aria-label={category}>
-                            <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 sm:mb-2 sm:text-[11px]">
+                            <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 sm:mb-2 sm:text-[11px]">
                                 {category}
                             </h2>
-                            <ul className="flex flex-wrap gap-1.5 sm:gap-2">
+                            <ul className="flex flex-wrap gap-2">
                                 {items.map(link => (
                                     <li key={link.label}>
                                         <LinkChip link={link} />
@@ -47,7 +66,7 @@ export default function Links() {
                     )
                 })}
                 {/* Assistant launchers — Ask AI links to the full chat page; Terminal opens an in-page panel. */}
-                <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2 dark:border-slate-800 sm:gap-2 sm:pt-4">
+                <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-2 dark:border-slate-800 sm:pt-4">
                     <AskAIChip />
                     <TerminalChip ref={termChipRef} active={termOpen} onClick={() => setTermOpen(o => !o)} />
                 </div>
@@ -64,7 +83,7 @@ function AskAIChip() {
             href="/chat"
             aria-label="Open Ask AI chat"
             title="Ask an on-device AI about Teo"
-            className="group inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[13px] text-slate-700 ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:ring-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:ring-slate-600 sm:gap-2 sm:px-3 sm:py-1.5 sm:text-sm"
+            className="group inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] text-slate-700 ring-1 ring-slate-200 transition active:scale-[0.97] hover:ring-slate-300 motion-safe:hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:ring-slate-600 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-950 sm:gap-2 sm:text-sm"
         >
             <svg
                 viewBox="0 0 24 24"
@@ -96,7 +115,7 @@ const TerminalChip = forwardRef<HTMLButtonElement, { active: boolean; onClick: (
             aria-expanded={active}
             aria-label={active ? 'Close terminal' : 'Open terminal'}
             title="Toggle interactive terminal"
-            className={`group inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] ring-1 transition hover:-translate-y-0.5 sm:gap-2 sm:px-3 sm:py-1.5 sm:text-sm ${
+            className={`group inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] ring-1 transition active:scale-[0.97] motion-safe:hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-950 sm:gap-2 sm:text-sm ${
                 active
                     ? 'bg-slate-900 text-slate-100 ring-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-300'
                     : 'bg-white text-slate-700 ring-slate-200 hover:ring-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:ring-slate-600'
@@ -147,7 +166,7 @@ function IconMask({ link, className = 'h-4 w-4' }: { link: LinkItem; className?:
 
 function ChipInner({ link }: { link: LinkItem }) {
     return (
-        <span className="group inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[13px] ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:ring-slate-300 dark:bg-slate-800 dark:ring-slate-700 dark:hover:ring-slate-600 sm:gap-2 sm:px-3 sm:py-1.5 sm:text-sm">
+        <span className="group inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] ring-1 ring-slate-200 transition active:scale-[0.97] hover:ring-slate-300 motion-safe:hover:-translate-y-0.5 dark:bg-slate-800 dark:ring-slate-700 dark:hover:ring-slate-600 sm:gap-2 sm:text-sm">
             <IconMask link={link} className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="text-slate-700 dark:text-slate-200">{link.label}</span>
         </span>
@@ -160,7 +179,20 @@ type TooltipPosition = {
 }
 
 // Hover/focus card that reveals a handle and any public stats (XP, streak, rating...).
-function StatCard({ link, triggerRef, id }: { link: LinkItem; triggerRef: RefObject<HTMLElement | null>; id: string }) {
+// On touch (`interactive`) it becomes tappable and shows a Visit action.
+function StatCard({
+    link,
+    triggerRef,
+    id,
+    interactive = false,
+    actionHref,
+}: {
+    link: LinkItem
+    triggerRef: RefObject<HTMLElement | null>
+    id: string
+    interactive?: boolean
+    actionHref?: string
+}) {
     const cardRef = useRef<HTMLDivElement>(null)
     const [position, setPosition] = useState<TooltipPosition | null>(null)
 
@@ -211,7 +243,7 @@ function StatCard({ link, triggerRef, id }: { link: LinkItem; triggerRef: RefObj
                 maxWidth: 'min(16rem, calc(100vw - 1.5rem))',
                 visibility: position ? 'visible' : 'hidden',
             }}
-            className={`pointer-events-none fixed z-50 transition duration-150 ease-out ${
+            className={`fixed z-50 transition duration-150 ease-out ${interactive ? '' : 'pointer-events-none'} ${
                 position ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'
             }`}
         >
@@ -239,6 +271,17 @@ function StatCard({ link, triggerRef, id }: { link: LinkItem; triggerRef: RefObj
                         ))}
                     </dl>
                 )}
+                {actionHref && (
+                    <a
+                        href={actionHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2.5 inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                    >
+                        Visit
+                        <span aria-hidden>↗</span>
+                    </a>
+                )}
             </div>
         </div>
     )
@@ -251,20 +294,29 @@ function LinkChip({ link }: { link: LinkItem }) {
     const qrPopoverId = useId()
     const statCardId = useId()
     const qrWrapRef = useRef<HTMLDivElement>(null)
+    const wrapRef = useRef<HTMLDivElement>(null)
     const triggerRef = useRef<HTMLElement | null>(null)
     const copyResetRef = useRef<number | null>(null)
+    const canHover = useCanHover()
     // Standard links get a hover/focus stats card; QR chips own their click popover instead.
     const showCard = !link.qrcode && Boolean(link.meta || link.stats?.length)
     const setTriggerRef: RefCallback<HTMLElement> = node => {
         triggerRef.current = node
     }
+    // Hover devices: pointer enter/leave drives the card. Touch devices: it is
+    // tap-to-open (handled in onClick below) and closed by an outside tap / Escape.
+    // Focus opens the card everywhere so keyboard users get it too.
     const triggerCardProps = showCard
         ? {
               'aria-describedby': cardOpen ? statCardId : undefined,
               onFocus: () => setCardOpen(true),
-              onBlur: () => setCardOpen(false),
-              onPointerEnter: () => setCardOpen(true),
-              onPointerLeave: () => setCardOpen(false),
+              ...(canHover
+                  ? {
+                        onBlur: () => setCardOpen(false),
+                        onPointerEnter: () => setCardOpen(true),
+                        onPointerLeave: () => setCardOpen(false),
+                    }
+                  : {}),
           }
         : {}
 
@@ -273,6 +325,23 @@ function LinkChip({ link }: { link: LinkItem }) {
             if (copyResetRef.current !== null) window.clearTimeout(copyResetRef.current)
         }
     }, [])
+
+    // On touch, a tapped-open stat card is dismissed by tapping outside it or Escape.
+    useEffect(() => {
+        if (canHover || !cardOpen) return
+        const closeOnOutsidePress = (event: PointerEvent) => {
+            if (!wrapRef.current?.contains(event.target as Node)) setCardOpen(false)
+        }
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setCardOpen(false)
+        }
+        document.addEventListener('pointerdown', closeOnOutsidePress)
+        document.addEventListener('keydown', closeOnEscape)
+        return () => {
+            document.removeEventListener('pointerdown', closeOnOutsidePress)
+            document.removeEventListener('keydown', closeOnEscape)
+        }
+    }, [canHover, cardOpen])
 
     useEffect(() => {
         if (!qrOpen || !link.qrcode) return
@@ -302,7 +371,7 @@ function LinkChip({ link }: { link: LinkItem }) {
                     aria-controls={qrOpen ? qrPopoverId : undefined}
                     aria-label={`Show ${link.label} QR code`}
                     title={`${link.label} QR code`}
-                    className="cursor-pointer"
+                    className={`inline-flex cursor-pointer ${FOCUS_RING}`}
                 >
                     <ChipInner link={link} />
                 </button>
@@ -338,29 +407,54 @@ function LinkChip({ link }: { link: LinkItem }) {
                 ? { ...link, label: handle }
                 : link
         return (
-            <div className="relative inline-block">
+            <div ref={wrapRef} className="relative inline-block">
                 <button
                     ref={setTriggerRef}
                     type="button"
                     onClick={copy}
                     aria-label={`Copy ${link.label} handle ${handle}`}
                     title={`${handle} - click to copy`}
-                    className="cursor-pointer"
+                    className={`inline-flex cursor-pointer ${FOCUS_RING}`}
                     {...triggerCardProps}
                 >
                     <ChipInner link={visibleLink} />
                 </button>
-                {showCard && cardOpen && <StatCard id={statCardId} triggerRef={triggerRef} link={link} />}
+                {showCard && cardOpen && (
+                    <StatCard id={statCardId} triggerRef={triggerRef} link={link} interactive={!canHover} />
+                )}
             </div>
         )
     }
 
     return (
-        <div className="relative inline-block">
-            <a ref={setTriggerRef} href={link.href} target="_blank" rel="noopener noreferrer" {...triggerCardProps}>
+        <div ref={wrapRef} className="relative inline-block">
+            <a
+                ref={setTriggerRef}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`inline-flex ${FOCUS_RING}`}
+                // On touch, the first tap reveals the stat card instead of navigating;
+                // a second tap (or the card's Visit action) then follows the link.
+                onClick={event => {
+                    if (!canHover && showCard && !cardOpen) {
+                        event.preventDefault()
+                        setCardOpen(true)
+                    }
+                }}
+                {...triggerCardProps}
+            >
                 <ChipInner link={link} />
             </a>
-            {showCard && cardOpen && <StatCard id={statCardId} triggerRef={triggerRef} link={link} />}
+            {showCard && cardOpen && (
+                <StatCard
+                    id={statCardId}
+                    triggerRef={triggerRef}
+                    link={link}
+                    interactive={!canHover}
+                    actionHref={!canHover ? link.href : undefined}
+                />
+            )}
         </div>
     )
 }
