@@ -90,6 +90,12 @@ export const links: LinkItem[] = [
         color: '#20BEFF',
         category: 'Work & Research',
         meta: '@sirteo',
+        stats: [
+            { label: 'Competitions', value: '19' },
+            { label: 'Code', value: '3' },
+            { label: 'Writeups', value: '2' },
+            { label: 'Joined', value: '6y ago' },
+        ],
     },
     {
         label: 'Blog',
@@ -117,6 +123,11 @@ export const links: LinkItem[] = [
         colorDark: '#4DA3E4',
         category: 'Work & Research',
         meta: 'in/teozeng',
+        stats: [
+            { label: 'Connections', value: '500+' },
+            { label: 'Role', value: 'Data Scientist' },
+            { label: 'Location', value: 'New York' },
+        ],
     },
     {
         label: 'Google Scholar',
@@ -125,6 +136,12 @@ export const links: LinkItem[] = [
         color: '#4285F4',
         category: 'Work & Research',
         meta: 'Publications',
+        stats: [
+            { label: 'Articles', value: '5' },
+            { label: 'Citations', value: '7' },
+            { label: 'h-index', value: '1' },
+            { label: 'i10-index', value: '0' },
+        ],
     },
     {
         label: 'GitHub',
@@ -149,6 +166,10 @@ export const links: LinkItem[] = [
         color: '#FF0000',
         category: 'Social',
         meta: '@teozeng3999',
+        stats: [
+            { label: 'Videos', value: '10' },
+            { label: 'Subscribers', value: '5' },
+        ],
     },
     {
         label: 'Reddit',
@@ -157,6 +178,12 @@ export const links: LinkItem[] = [
         color: '#FF4500',
         category: 'Social',
         meta: 'u/Puzzleheaded_Bid_178',
+        stats: [
+            { label: 'Karma', value: '23' },
+            { label: 'Post', value: '22' },
+            { label: 'Comment', value: '1' },
+            { label: 'Cake day', value: 'Aug 2021' },
+        ],
     },
     {
         label: 'WeChat',
@@ -182,6 +209,12 @@ export const links: LinkItem[] = [
         color: '#FB7299',
         category: 'Social',
         meta: 'space/299736746',
+        stats: [
+            { label: 'Videos', value: '51' },
+            { label: 'Followers', value: '78' },
+            { label: 'Likes', value: '1,053' },
+            { label: 'Level', value: '5' },
+        ],
     },
     {
         label: 'Instagram',
@@ -190,6 +223,11 @@ export const links: LinkItem[] = [
         color: '#E4405F',
         category: 'Social',
         meta: '@sir_teo',
+        stats: [
+            { label: 'Posts', value: '78' },
+            { label: 'Followers', value: '535' },
+            { label: 'Following', value: '577' },
+        ],
     },
 
     // ── Play & Hobbies ───────────────────────────────────────────────
@@ -200,6 +238,10 @@ export const links: LinkItem[] = [
         color: '#FC4C02',
         category: 'Play & Hobbies',
         meta: 'Athlete 206183585',
+        stats: [
+            { label: 'Athlete ID', value: '206183585' },
+            { label: 'Primary', value: 'Run' },
+        ],
     },
     {
         // Clash of Clans has no official public player page; ClashOfStats hosts
@@ -210,6 +252,12 @@ export const links: LinkItem[] = [
         color: '#E9A409',
         category: 'Play & Hobbies',
         meta: 'Tag #QP8UV90',
+        stats: [
+            { label: 'Town Hall', value: '18' },
+            { label: 'XP', value: '241' },
+            { label: 'Trophies', value: '1,724' },
+            { label: 'Best', value: '5,561' },
+        ],
     },
     {
         label: 'Chess.com',
@@ -245,6 +293,10 @@ export const links: LinkItem[] = [
         colorDark: '#4DA3E4',
         category: 'Play & Hobbies',
         meta: 'masterteo1205',
+        stats: [
+            { label: 'Online ID', value: 'masterteo1205' },
+            { label: 'Network', value: 'PSN' },
+        ],
     },
     {
         label: 'OGS',
