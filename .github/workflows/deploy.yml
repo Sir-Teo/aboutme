@@ -11,6 +11,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Serialize deploys to the live channel. Back-to-back pushes otherwise race:
+# two runs upload near-identical content and the slower one tries to release a
+# version that is already live, which Firebase rejects. Cancel any in-flight
+# deploy so only the newest commit reaches the live channel.
+concurrency:
+  group: firebase-hosting-live
+  cancel-in-progress: true
+
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
@@ -26,6 +34,19 @@ jobs:
       - run: npm run build
 
       - name: Deploy to Firebase Hosting
-        run: npx --yes firebase-tools@latest deploy --only hosting --project personal-website-3bc37 --non-interactive
+        # Treat the "version is already the current active version" response as
+        # success: it means the live channel already serves this exact build, so
+        # there is nothing to release. Any other non-zero exit still fails the job.
+        run: |
+          set -o pipefail
+          out=$(npx --yes firebase-tools@latest deploy --only hosting \
+            --project personal-website-3bc37 --non-interactive 2>&1 | tee /dev/stderr) || code=$?
+          if [ -n "${code:-}" ]; then
+            if printf '%s' "$out" | grep -qiE 'current active version|Nothing to deploy|no changes'; then
+              echo "::notice::Live channel already serves this build — nothing new to release."
+              exit 0
+            fi
+            exit "$code"
+          fi
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
