@@ -98,6 +98,21 @@ export const links: LinkItem[] = [
         ],
     },
     {
+        label: 'Devpost',
+        href: 'https://devpost.com/zengwc-teo2016',
+        icon: '/icons/devpost.svg',
+        color: '#003E54',
+        colorDark: '#7dd3fc',
+        category: 'Work & Research',
+        meta: '@zengwc-teo2016',
+        stats: [
+            { label: 'Projects', value: '1' },
+            { label: 'Hackathons', value: '1' },
+            { label: 'Achievements', value: '1' },
+            { label: 'Likes', value: '1' },
+        ],
+    },
+    {
         label: 'Blog',
         href: 'https://sir-teo.github.io/blogs/',
         icon: '/icons/blog.svg',
@@ -237,10 +252,12 @@ export const links: LinkItem[] = [
         icon: '/icons/strava.svg',
         color: '#FC4C02',
         category: 'Play & Hobbies',
-        meta: 'Athlete 206183585',
+        meta: 'Boston runner profile',
         stats: [
-            { label: 'Athlete ID', value: '206183585' },
-            { label: 'Primary', value: 'Run' },
+            { label: 'Activities', value: '124' },
+            { label: 'Distance', value: '340.5 mi' },
+            { label: 'Time', value: '60h 17m' },
+            { label: 'Followers', value: '5' },
         ],
     },
     {
@@ -257,6 +274,21 @@ export const links: LinkItem[] = [
             { label: 'XP', value: '241' },
             { label: 'Trophies', value: '1,724' },
             { label: 'Best', value: '5,561' },
+        ],
+    },
+    {
+        label: 'Genshin Impact',
+        href: 'https://dak.gg/genshin/profile/646322102?hl=en',
+        icon: '/icons/genshin-impact.svg',
+        color: '#C9A86A',
+        colorDark: '#F2DFA7',
+        category: 'Play & Hobbies',
+        meta: 'Teo · America · UID 646322102',
+        stats: [
+            { label: 'UID', value: '646322102' },
+            { label: 'AR', value: '59' },
+            { label: 'Achievements', value: '838' },
+            { label: 'Characters', value: '64' },
         ],
     },
     {
@@ -292,11 +324,7 @@ export const links: LinkItem[] = [
         color: '#0070D1',
         colorDark: '#4DA3E4',
         category: 'Play & Hobbies',
-        meta: 'masterteo1205',
-        stats: [
-            { label: 'Online ID', value: 'masterteo1205' },
-            { label: 'Network', value: 'PSN' },
-        ],
+        meta: 'PSN: masterteo1205',
     },
     {
         label: 'OGS',
@@ -316,7 +344,12 @@ export const links: LinkItem[] = [
         colorDark: '#66C0F4',
         category: 'Play & Hobbies',
         meta: 'Master Teo',
-        stats: [{ label: 'Since', value: '2017' }],
+        stats: [
+            { label: 'Level', value: '47' },
+            { label: 'Games', value: '57' },
+            { label: 'Badges', value: '11' },
+            { label: 'Reviews', value: '17' },
+        ],
     },
 
     // ── Photography ──────────────────────────────────────────────────

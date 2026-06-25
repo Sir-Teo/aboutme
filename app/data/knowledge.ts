@@ -95,7 +95,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
     {
         id: 'socials',
         topic: 'Social profiles & handles',
-        text: "Teo's profiles: GitHub github.com/Sir-Teo, LinkedIn linkedin.com/in/teozeng, Google Scholar (Weicheng Zeng), Kaggle kaggle.com/sirteo, Instagram @sir_teo, YouTube @teozeng3999, Bilibili, Strava, Chess.com (masterteo1205), OGS / online-go, and Discord (teozeng).",
+        text: "Teo's profiles: GitHub github.com/Sir-Teo, LinkedIn linkedin.com/in/teozeng, Google Scholar (Weicheng Zeng), Kaggle kaggle.com/sirteo, Devpost devpost.com/zengwc-teo2016, Instagram @sir_teo, YouTube @teozeng3999, Bilibili, Strava, Genshin Impact (UID 646322102), Chess.com (masterteo1205), OGS / online-go, and Discord (teozeng).",
         keywords: [
             'social',
             'socials',
@@ -108,6 +108,11 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
             'github',
             'linkedin',
             'kaggle',
+            'devpost',
+            'genshin',
+            'genshin impact',
+            'hoyolab',
+            'dak.gg',
             'instagram',
             'youtube',
             'bilibili',

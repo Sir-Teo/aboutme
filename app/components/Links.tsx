@@ -1,5 +1,15 @@
 'use client'
-import { forwardRef, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
+import {
+    forwardRef,
+    useEffect,
+    useId,
+    useLayoutEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type RefCallback,
+    type RefObject,
+} from 'react'
 import QRCodePopover from './QRCodePopover'
 import Terminal from './Terminal'
 import { categories, links, type LinkItem } from '../data/profile'
@@ -14,9 +24,7 @@ export default function Links() {
     }
     return (
         <>
-            {/* overflow-x-clip keeps a right-edge chip's hover card from ever causing a
-                horizontal scrollbar, while overflow-y stays visible so cards pop upward. */}
-            <div className="space-y-7 overflow-x-clip">
+            <div className="space-y-3 sm:space-y-6">
                 {/* Chips grouped into a few categories; within each, ordered by rainbow hue. */}
                 {categories.map(category => {
                     const items = links.filter(
@@ -25,10 +33,10 @@ export default function Links() {
                     if (items.length === 0) return null
                     return (
                         <section key={category} aria-label={category}>
-                            <h2 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
+                            <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 sm:mb-2 sm:text-[11px]">
                                 {category}
                             </h2>
-                            <ul className="flex flex-wrap gap-2">
+                            <ul className="flex flex-wrap gap-1.5 sm:gap-2">
                                 {items.map(link => (
                                     <li key={link.label}>
                                         <LinkChip link={link} />
@@ -39,7 +47,7 @@ export default function Links() {
                     )
                 })}
                 {/* Assistant launchers — Ask AI links to the full chat page; Terminal opens an in-page panel. */}
-                <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-5 dark:border-slate-800">
+                <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2 dark:border-slate-800 sm:gap-2 sm:pt-4">
                     <AskAIChip />
                     <TerminalChip ref={termChipRef} active={termOpen} onClick={() => setTermOpen(o => !o)} />
                 </div>
@@ -56,12 +64,12 @@ function AskAIChip() {
             href="/chat"
             aria-label="Open Ask AI chat"
             title="Ask an on-device AI about Teo"
-            className="group inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm text-slate-700 ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:ring-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:ring-slate-600"
+            className="group inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[13px] text-slate-700 ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:ring-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:ring-slate-600 sm:gap-2 sm:px-3 sm:py-1.5 sm:text-sm"
         >
             <svg
                 viewBox="0 0 24 24"
                 aria-hidden
-                className="h-4 w-4 shrink-0"
+                className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -88,7 +96,7 @@ const TerminalChip = forwardRef<HTMLButtonElement, { active: boolean; onClick: (
             aria-expanded={active}
             aria-label={active ? 'Close terminal' : 'Open terminal'}
             title="Toggle interactive terminal"
-            className={`group inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm ring-1 transition hover:-translate-y-0.5 ${
+            className={`group inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] ring-1 transition hover:-translate-y-0.5 sm:gap-2 sm:px-3 sm:py-1.5 sm:text-sm ${
                 active
                     ? 'bg-slate-900 text-slate-100 ring-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-300'
                     : 'bg-white text-slate-700 ring-slate-200 hover:ring-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:ring-slate-600'
@@ -97,7 +105,7 @@ const TerminalChip = forwardRef<HTMLButtonElement, { active: boolean; onClick: (
             <svg
                 viewBox="0 0 24 24"
                 aria-hidden
-                className="h-4 w-4 shrink-0"
+                className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -139,37 +147,92 @@ function IconMask({ link, className = 'h-4 w-4' }: { link: LinkItem; className?:
 
 function ChipInner({ link }: { link: LinkItem }) {
     return (
-        <span className="group inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:ring-slate-300 dark:bg-slate-800 dark:ring-slate-700 dark:hover:ring-slate-600">
-            <IconMask link={link} />
+        <span className="group inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[13px] ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:ring-slate-300 dark:bg-slate-800 dark:ring-slate-700 dark:hover:ring-slate-600 sm:gap-2 sm:px-3 sm:py-1.5 sm:text-sm">
+            <IconMask link={link} className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="text-slate-700 dark:text-slate-200">{link.label}</span>
         </span>
     )
 }
 
-// Hover/focus card that reveals a handle and any public stats (XP, streak, rating…).
-// Opens upward, anchored to the chip; the pb-2 acts as a hover bridge so it doesn't flicker.
-function StatCard({ link }: { link: LinkItem }) {
+type TooltipPosition = {
+    left: number
+    top: number
+}
+
+// Hover/focus card that reveals a handle and any public stats (XP, streak, rating...).
+function StatCard({ link, triggerRef, id }: { link: LinkItem; triggerRef: RefObject<HTMLElement | null>; id: string }) {
+    const cardRef = useRef<HTMLDivElement>(null)
+    const [position, setPosition] = useState<TooltipPosition | null>(null)
+
+    useLayoutEffect(() => {
+        const updatePosition = () => {
+            const trigger = triggerRef.current
+            const card = cardRef.current
+            if (!trigger || !card) return
+
+            const triggerRect = trigger.getBoundingClientRect()
+            const cardRect = card.getBoundingClientRect()
+            const margin = 12
+            const gap = 8
+            const availableWidth = Math.max(0, window.innerWidth - margin * 2)
+            const cardWidth = Math.min(cardRect.width || 240, availableWidth)
+            const cardHeight = cardRect.height || 120
+            const preferredTop = triggerRect.top - cardHeight - gap
+            const opensAbove = preferredTop >= margin
+            const top = opensAbove
+                ? preferredTop
+                : Math.min(triggerRect.bottom + gap, window.innerHeight - cardHeight - margin)
+            const centeredLeft = triggerRect.left + triggerRect.width / 2 - cardWidth / 2
+            const left = Math.min(Math.max(centeredLeft, margin), window.innerWidth - cardWidth - margin)
+
+            setPosition({ left, top: Math.max(margin, top) })
+        }
+
+        updatePosition()
+        const frame = window.requestAnimationFrame(updatePosition)
+        window.addEventListener('resize', updatePosition)
+        window.addEventListener('scroll', updatePosition, true)
+
+        return () => {
+            window.cancelAnimationFrame(frame)
+            window.removeEventListener('resize', updatePosition)
+            window.removeEventListener('scroll', updatePosition, true)
+        }
+    }, [triggerRef])
+
     return (
         <div
+            id={id}
+            ref={cardRef}
             role="tooltip"
-            className="pointer-events-none absolute bottom-full left-0 z-20 translate-y-1 pb-2 opacity-0 transition duration-150 ease-out group-hover/chip:pointer-events-auto group-hover/chip:translate-y-0 group-hover/chip:opacity-100 group-focus-within/chip:pointer-events-auto group-focus-within/chip:translate-y-0 group-focus-within/chip:opacity-100"
+            style={{
+                left: position?.left ?? 0,
+                top: position?.top ?? 0,
+                maxWidth: 'min(16rem, calc(100vw - 1.5rem))',
+                visibility: position ? 'visible' : 'hidden',
+            }}
+            className={`pointer-events-none fixed z-50 transition duration-150 ease-out ${
+                position ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'
+            }`}
         >
-            <div className="w-max max-w-[15rem] rounded-xl bg-white/95 p-3 text-left shadow-lg ring-1 ring-slate-200 backdrop-blur dark:bg-slate-800/95 dark:ring-slate-700">
+            <div className="w-max min-w-40 rounded-lg bg-white/95 p-3 text-left shadow-lg ring-1 ring-slate-200 backdrop-blur dark:bg-slate-800/95 dark:ring-slate-700">
                 <div className="flex items-center gap-2">
                     <IconMask link={link} className="h-3.5 w-3.5" />
-                    <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{link.label}</span>
+                    <span className="min-w-0 break-words text-sm font-medium text-slate-800 dark:text-slate-100">
+                        {link.label}
+                    </span>
                 </div>
                 {link.meta && (
                     <p className="mt-0.5 break-words text-xs text-slate-400 dark:text-slate-500">{link.meta}</p>
                 )}
                 {link.stats && link.stats.length > 0 && (
-                    <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
                         {link.stats.map(stat => (
-                            <div key={stat.label} className="flex flex-col">
+                            <div key={stat.label} className="flex min-w-0 flex-col">
                                 <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
                                     {stat.label}
                                 </dt>
-                                <dd className="text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                                <dd className="break-words text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">
                                     {stat.value}
                                 </dd>
                             </div>
@@ -182,13 +245,28 @@ function StatCard({ link }: { link: LinkItem }) {
 }
 
 function LinkChip({ link }: { link: LinkItem }) {
-    const [open, setOpen] = useState(false)
+    const [qrOpen, setQrOpen] = useState(false)
+    const [cardOpen, setCardOpen] = useState(false)
     const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'showing'>('idle')
     const qrPopoverId = useId()
+    const statCardId = useId()
     const qrWrapRef = useRef<HTMLDivElement>(null)
+    const triggerRef = useRef<HTMLElement | null>(null)
     const copyResetRef = useRef<number | null>(null)
     // Standard links get a hover/focus stats card; QR chips own their click popover instead.
     const showCard = !link.qrcode && Boolean(link.meta || link.stats?.length)
+    const setTriggerRef: RefCallback<HTMLElement> = node => {
+        triggerRef.current = node
+    }
+    const triggerCardProps = showCard
+        ? {
+              'aria-describedby': cardOpen ? statCardId : undefined,
+              onFocus: () => setCardOpen(true),
+              onBlur: () => setCardOpen(false),
+              onPointerEnter: () => setCardOpen(true),
+              onPointerLeave: () => setCardOpen(false),
+          }
+        : {}
 
     useEffect(() => {
         return () => {
@@ -197,12 +275,12 @@ function LinkChip({ link }: { link: LinkItem }) {
     }, [])
 
     useEffect(() => {
-        if (!open || !link.qrcode) return
+        if (!qrOpen || !link.qrcode) return
         const closeOnOutsidePress = (event: PointerEvent) => {
-            if (!qrWrapRef.current?.contains(event.target as Node)) setOpen(false)
+            if (!qrWrapRef.current?.contains(event.target as Node)) setQrOpen(false)
         }
         const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setOpen(false)
+            if (event.key === 'Escape') setQrOpen(false)
         }
         document.addEventListener('pointerdown', closeOnOutsidePress)
         document.addEventListener('keydown', closeOnEscape)
@@ -210,7 +288,7 @@ function LinkChip({ link }: { link: LinkItem }) {
             document.removeEventListener('pointerdown', closeOnOutsidePress)
             document.removeEventListener('keydown', closeOnEscape)
         }
-    }, [open, link.qrcode])
+    }, [qrOpen, link.qrcode])
 
     // QR-only link (WeChat): click/tap toggles the code; outside click or Escape closes it.
     if (link.qrcode) {
@@ -218,10 +296,10 @@ function LinkChip({ link }: { link: LinkItem }) {
             <div ref={qrWrapRef} className="relative inline-block">
                 <button
                     type="button"
-                    onClick={() => setOpen(current => !current)}
+                    onClick={() => setQrOpen(current => !current)}
                     aria-haspopup="dialog"
-                    aria-expanded={open}
-                    aria-controls={open ? qrPopoverId : undefined}
+                    aria-expanded={qrOpen}
+                    aria-controls={qrOpen ? qrPopoverId : undefined}
                     aria-label={`Show ${link.label} QR code`}
                     title={`${link.label} QR code`}
                     className="cursor-pointer"
@@ -230,10 +308,10 @@ function LinkChip({ link }: { link: LinkItem }) {
                 </button>
                 <QRCodePopover
                     id={qrPopoverId}
-                    isOpen={open}
+                    isOpen={qrOpen}
                     qrCodeImg={link.qrcode}
                     label={link.label}
-                    onClose={() => setOpen(false)}
+                    onClose={() => setQrOpen(false)}
                 />
             </div>
         )
@@ -260,27 +338,29 @@ function LinkChip({ link }: { link: LinkItem }) {
                 ? { ...link, label: handle }
                 : link
         return (
-            <div className="group/chip relative inline-block">
+            <div className="relative inline-block">
                 <button
+                    ref={setTriggerRef}
                     type="button"
                     onClick={copy}
                     aria-label={`Copy ${link.label} handle ${handle}`}
                     title={`${handle} - click to copy`}
                     className="cursor-pointer"
+                    {...triggerCardProps}
                 >
                     <ChipInner link={visibleLink} />
                 </button>
-                {showCard && <StatCard link={link} />}
+                {showCard && cardOpen && <StatCard id={statCardId} triggerRef={triggerRef} link={link} />}
             </div>
         )
     }
 
     return (
-        <div className="group/chip relative inline-block">
-            <a href={link.href} target="_blank" rel="noopener noreferrer">
+        <div className="relative inline-block">
+            <a ref={setTriggerRef} href={link.href} target="_blank" rel="noopener noreferrer" {...triggerCardProps}>
                 <ChipInner link={link} />
             </a>
-            {showCard && <StatCard link={link} />}
+            {showCard && cardOpen && <StatCard id={statCardId} triggerRef={triggerRef} link={link} />}
         </div>
     )
 }
