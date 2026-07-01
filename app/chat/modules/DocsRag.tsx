@@ -6,6 +6,7 @@ import { engineById } from '../engines'
 import { VectorStore } from '../../lib/vectorStore'
 import { embed, embedOne, rerank, warmEmbedder } from '../agent/embeddings'
 import { generate, warm, disposeModel } from '../agent/runtime'
+import { chunkText, extractText } from '../agent/docs'
 
 // "Chat with a document" — drop a PDF / text file (or paste), and ask questions
 // answered only from its contents. Parsing, chunking, embedding (EmbeddingGemma),
@@ -14,42 +15,6 @@ import { generate, warm, disposeModel } from '../agent/runtime'
 const ANSWER_ENGINE = engineById('lfm2.5-1.2b')
 type DocMeta = { text: string; source: string }
 type QA = { q: string; a: string; sources: string[] }
-
-// Split text into ~overlapping chunks on sentence-ish boundaries.
-function chunkText(text: string, size = 900, overlap = 150): string[] {
-    const clean = text.replace(/\s+/g, ' ').trim()
-    if (clean.length <= size) return clean ? [clean] : []
-    const chunks: string[] = []
-    let i = 0
-    while (i < clean.length) {
-        let end = Math.min(i + size, clean.length)
-        if (end < clean.length) {
-            const dot = clean.lastIndexOf('. ', end)
-            if (dot > i + size * 0.5) end = dot + 1
-        }
-        chunks.push(clean.slice(i, end).trim())
-        i = end - overlap
-        if (i < 0) i = 0
-    }
-    return chunks.filter(Boolean)
-}
-
-async function extractText(file: File): Promise<string> {
-    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        const pdfjs: any = await import('pdfjs-dist')
-        pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.0.227/build/pdf.worker.min.mjs'
-        const data = new Uint8Array(await file.arrayBuffer())
-        const pdf = await pdfjs.getDocument({ data }).promise
-        let text = ''
-        for (let p = 1; p <= pdf.numPages; p++) {
-            const page = await pdf.getPage(p)
-            const content = await page.getTextContent()
-            text += content.items.map((it: any) => it.str).join(' ') + '\n'
-        }
-        return text
-    }
-    return file.text()
-}
 
 function DocsRagInner() {
     const [status, setStatus] = useState('')
@@ -80,7 +45,10 @@ function DocsRagInner() {
                 return
             }
             setStatus(`Embedding ${chunks.length} chunks…`)
-            const vectors = await embed(chunks, 'document')
+            const vectors: number[][] = []
+            for (let i = 0; i < chunks.length; i += 32) {
+                vectors.push(...(await embed(chunks.slice(i, i + 32), 'document')))
+            }
             const store = new VectorStore<DocMeta>()
             store.addMany(
                 chunks.map((text, i) => ({ id: `c${i}`, vector: vectors[i] ?? [], metadata: { text, source: name } }))

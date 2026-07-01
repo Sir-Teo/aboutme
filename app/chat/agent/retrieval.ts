@@ -8,12 +8,13 @@
 import { ALL_KNOWLEDGE, type KnowledgeChunk, type Source } from '../../data/knowledge'
 import { EMBEDDING_ENGINE } from '../engines'
 import { VectorStore } from '../../lib/vectorStore'
+import { idbDelete, idbKeys } from '../../lib/idb'
 import { embed, embedOne, rerank } from './embeddings'
 import { embedText, lexicalSearch, rrf, chunkById } from './hybrid'
 
 // Bump to invalidate every cached embedding index when the indexing scheme (not
 // just the KB content) changes — e.g. the switch to contextual embedText below.
-const INDEX_VERSION = 'ctx-hybrid-v2'
+const INDEX_VERSION = 'ctx-hybrid-v3'
 
 type ChunkMeta = { topic: string; text: string; source?: Source }
 
@@ -23,12 +24,14 @@ type ChunkMeta = { topic: string; text: string; source?: Source }
 // GPUs. 32 keeps the forward pass small while still amortizing per-call overhead.
 const EMBED_BATCH = 32
 
-// Bump implicitly via content: the cache key folds in every chunk + source + model
-// + dims, so editing the KB (or re-running `npm run ingest`) rebuilds the index.
+// Bump implicitly via content: the cache key folds in everything that feeds the
+// embedded text (embedText = subject + topic + body + keywords) plus the model,
+// dtype and dims, so editing the KB — including keyword/topic-only tweaks — or
+// re-running `npm run ingest` rebuilds the index.
 function contentHash(): string {
     const blob =
-        ALL_KNOWLEDGE.map(c => `${c.id}:${c.text}:${c.source?.url ?? ''}`).join('|') +
-        `|${EMBEDDING_ENGINE.modelId}|${EMBEDDING_ENGINE.dimensions}|${INDEX_VERSION}`
+        ALL_KNOWLEDGE.map(c => `${c.id}:${embedText(c)}:${c.source?.url ?? ''}`).join('|') +
+        `|${EMBEDDING_ENGINE.modelId}|${EMBEDDING_ENGINE.dtype}|${EMBEDDING_ENGINE.dimensions}|${INDEX_VERSION}`
     let h = 5381
     for (let i = 0; i < blob.length; i++) h = ((h << 5) + h + blob.charCodeAt(i)) | 0
     return `kb-${(h >>> 0).toString(36)}`
@@ -36,11 +39,24 @@ function contentHash(): string {
 
 let indexPromise: Promise<VectorStore<ChunkMeta>> | null = null
 
+// Drop cached indexes from earlier KB versions: each content change mints a new
+// `kb-*` key and stale ones (~1 MB each) would otherwise accumulate forever.
+function evictStaleIndexes(current: string) {
+    void idbKeys('vectors')
+        .then(keys =>
+            Promise.all(keys.filter(k => k.startsWith('kb-') && k !== current).map(k => idbDelete('vectors', k)))
+        )
+        .catch(() => undefined)
+}
+
 async function buildIndex(): Promise<VectorStore<ChunkMeta>> {
     const cacheKey = contentHash()
     const store = new VectorStore<ChunkMeta>({ store: 'vectors', key: cacheKey })
 
-    if (await store.load()) return store
+    if (await store.load()) {
+        evictStaleIndexes(cacheKey)
+        return store
+    }
 
     // Cache miss (first visit or knowledge changed): embed every chunk as a
     // document, in bounded batches, and persist. One-time cost — cached in
@@ -63,12 +79,23 @@ async function buildIndex(): Promise<VectorStore<ChunkMeta>> {
             metadata: { topic: c.topic, text: c.text, source: c.source },
         }))
     )
-    await store.save()
+    // Persistence is best-effort: the in-memory index is fully usable even if the
+    // write fails (e.g. quota) — a save error must not take retrieval down.
+    await store
+        .save()
+        .then(() => evictStaleIndexes(cacheKey))
+        .catch(() => undefined)
     return store
 }
 
 function ensureIndex(): Promise<VectorStore<ChunkMeta>> {
-    return (indexPromise ??= buildIndex())
+    // Don't cache a rejection: one failed download/init (network blip, transient
+    // GPU issue) would otherwise poison every retrieval for the session.
+    indexPromise ??= buildIndex().catch(error => {
+        indexPromise = null
+        throw error
+    })
+    return indexPromise
 }
 
 export type RetrievedChunk = { id: string; topic: string; text: string; score: number; source?: Source }
@@ -83,29 +110,6 @@ export async function retrieveSemantic(query: string, k = 5): Promise<RetrievedC
         score: hit.score,
         source: hit.metadata.source,
     }))
-}
-
-// Two-stage retrieval: pull a wide candidate set with the bi-encoder, then let
-// the cross-encoder reranker re-score them for sharper grounding. Falls back to
-// the first-stage order if the reranker isn't available. The candidate pool is
-// wide (40) so a curated fact still reaches the reranker even when the bi-encoder
-// surfaces many ingested chunks first — widened as the KB grew past ~500 (curated +
-// GitHub/blog + the privacy-screened vault coursework/research pass).
-export async function retrieveReranked(query: string, k = 5, candidates = 40): Promise<RetrievedChunk[]> {
-    const pool = await retrieveSemantic(query, candidates)
-    if (pool.length <= k) return pool
-    try {
-        const scores = await rerank(
-            query,
-            pool.map(c => c.text)
-        )
-        return pool
-            .map((c, i) => ({ ...c, score: scores[i] ?? c.score }))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, k)
-    } catch {
-        return pool.slice(0, k)
-    }
 }
 
 // Three-stage HYBRID retrieval — the production grounding path:
@@ -130,9 +134,12 @@ export async function retrieveHybrid(query: string, k = 5, pool = 40): Promise<R
 
     if (candidates.length <= k) return candidates
     try {
+        // Score the topic-situated text, not the bare body: chunk bodies can be
+        // vague ("this course", "the company") — the same vocabulary gap the
+        // contextual embedText closes for the bi-encoder and BM25 stages.
         const scores = await rerank(
             query,
-            candidates.map(c => c.text)
+            candidates.map(c => `${c.topic}. ${c.text}`)
         )
         return candidates
             .map((c, i) => ({ ...c, score: scores[i] ?? c.score }))

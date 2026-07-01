@@ -137,7 +137,9 @@ async function rerank(request: Extract<EmbedRequest, { type: 'rerank' }>) {
 workerSelf.addEventListener('message', event => {
     const request = event.data
     if (request.type === 'warm') {
-        void load(request.modelId, request.dtype).catch(() => undefined)
+        // Clear the progress line on failure so the UI doesn't show a stale
+        // "Downloading… N%" forever; the next embed call will retry the load.
+        void load(request.modelId, request.dtype).catch(() => post({ type: 'progress', progress: '' }))
         return
     }
     if (request.type === 'embed') void embed(request)

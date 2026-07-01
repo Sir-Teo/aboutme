@@ -35,15 +35,36 @@ function ensureWorker(): Worker {
                 pending.delete(msg.id)
                 p.resolve(msg.scores)
             }
-        } else if (msg.type === 'error' && msg.id) {
-            const p = pending.get(msg.id)
-            if (p) {
-                pending.delete(msg.id)
-                p.reject(new Error(msg.message))
+        } else if (msg.type === 'error') {
+            if (msg.id) {
+                const p = pending.get(msg.id)
+                if (p) {
+                    pending.delete(msg.id)
+                    p.reject(new Error(msg.message))
+                }
+            } else {
+                // A worker-level failure with no request id affects everything in flight.
+                rejectAll(new Error(msg.message))
             }
         }
     }
+    // If the worker itself dies (script load failure, killed under memory
+    // pressure), no per-request message will ever arrive — reject everything
+    // in flight so callers degrade instead of hanging the UI, and drop the
+    // worker so the next call retries with a fresh one.
+    worker.onerror = event => {
+        rejectAll(new Error(event.message || 'Embedding worker failed'))
+        worker?.terminate()
+        worker = null
+    }
+    worker.onmessageerror = () => rejectAll(new Error('Embedding worker message failed to deserialize'))
     return worker
+}
+
+function rejectAll(error: Error) {
+    const waiting = Array.from(pending.values())
+    pending.clear()
+    waiting.forEach(p => p.reject(error))
 }
 
 export function warmEmbedder() {

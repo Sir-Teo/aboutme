@@ -82,7 +82,11 @@ run('hybrid retrieval e2e (EmbeddingGemma + BM25 + RRF + BGE rerank)', () => {
     }
 
     async function rerankIds(query: string, ids: string[], k: number): Promise<string[]> {
-        const passages = ids.map(id => chunkById(id)?.text ?? '')
+        // Mirror production (retrieval.ts): rerank the topic-situated text.
+        const passages = ids.map(id => {
+            const c = chunkById(id)
+            return c ? `${c.topic}. ${c.text}` : ''
+        })
         const inputs = tokenizer(
             passages.map(() => query),
             { text_pair: passages, padding: true, truncation: true }

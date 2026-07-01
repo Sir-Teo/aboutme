@@ -14,7 +14,9 @@ export type IngestedDoc = { name: string; store: VectorStore<DocChunkMeta>; chun
 export async function extractText(file: File): Promise<string> {
     if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
         const pdfjs: any = await import('pdfjs-dist')
-        pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.0.227/build/pdf.worker.min.mjs'
+        // Bundled worker (same version as the installed package) — keeps parsing
+        // working offline/behind CSP instead of reaching out to a CDN.
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
         const data = new Uint8Array(await file.arrayBuffer())
         const pdf = await pdfjs.getDocument({ data }).promise
         let text = ''
@@ -41,18 +43,25 @@ export function chunkText(text: string, size = 900, overlap = 150): string[] {
             if (dot > i + size * 0.5) end = dot + 1
         }
         chunks.push(clean.slice(i, end).trim())
-        i = end - overlap
-        if (i < 0) i = 0
+        if (end >= clean.length) break
+        i = Math.max(end - overlap, i + 1)
     }
     return chunks.filter(Boolean)
 }
+
+// Embed in bounded sub-batches: a big PDF can produce hundreds of chunks, and a
+// single giant WebGPU forward pass would spike memory on weaker GPUs.
+const EMBED_BATCH = 32
 
 // Parse → chunk → embed a file into an in-memory store. Throws if no readable text.
 export async function ingestDoc(file: File): Promise<IngestedDoc> {
     const raw = await extractText(file)
     const chunks = chunkText(raw)
     if (!chunks.length) throw new Error('No readable text found in that document.')
-    const vectors = await embed(chunks, 'document')
+    const vectors: number[][] = []
+    for (let i = 0; i < chunks.length; i += EMBED_BATCH) {
+        vectors.push(...(await embed(chunks.slice(i, i + EMBED_BATCH), 'document')))
+    }
     const store = new VectorStore<DocChunkMeta>()
     store.addMany(chunks.map((text, i) => ({ id: `c${i}`, vector: vectors[i] ?? [], metadata: { text } })))
     return { name: file.name, store, chunks: chunks.length }

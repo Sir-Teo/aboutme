@@ -57,7 +57,10 @@ export class VectorStore<M = unknown> {
         return this.records.slice()
     }
 
-    search(query: number[], k = 5, minScore = 0): SearchHit<M>[] {
+    // Top-k by cosine. No score floor by default: a top-k API should return the
+    // best k even for out-of-domain queries where every similarity is ≤ 0 —
+    // callers that want a relevance cutoff pass `minScore` explicitly.
+    search(query: number[], k = 5, minScore = -Infinity): SearchHit<M>[] {
         const hits: SearchHit<M>[] = []
         for (const record of this.records) {
             const score = dot(query, record.vector)
@@ -69,9 +72,10 @@ export class VectorStore<M = unknown> {
 
     async load(): Promise<boolean> {
         if (!this.persist) return false
-        const saved = await idbGet<VectorRecord<M>[]>(this.persist.store, this.persist.key)
+        const saved = await idbGet<Array<VectorRecord<M> | PersistedRecord<M>>>(this.persist.store, this.persist.key)
         if (Array.isArray(saved)) {
-            this.records = saved
+            // Accept both formats: Float32Array (current) and number[] (older saves).
+            this.records = saved.map(r => ({ ...r, vector: Array.from(r.vector) }))
             return true
         }
         return false
@@ -79,9 +83,14 @@ export class VectorStore<M = unknown> {
 
     async save(): Promise<void> {
         if (!this.persist) return
-        await idbSet(this.persist.store, this.persist.key, this.records)
+        // Persist vectors as Float32Array: IndexedDB structured-clones number[]
+        // as 8-byte doubles, so this halves on-disk size at no quality cost.
+        const compact: PersistedRecord<M>[] = this.records.map(r => ({ ...r, vector: Float32Array.from(r.vector) }))
+        await idbSet(this.persist.store, this.persist.key, compact)
     }
 }
+
+type PersistedRecord<M> = Omit<VectorRecord<M>, 'vector'> & { vector: Float32Array }
 
 // Dot product of two equal-length normalized vectors = cosine similarity.
 function dot(a: number[], b: number[]): number {
