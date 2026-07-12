@@ -318,6 +318,15 @@ export const links: LinkItem[] = [
         ],
     },
     {
+        label: 'AllTrails',
+        href: 'https://www.alltrails.com/members/teo-zeng',
+        icon: '/icons/alltrails.svg',
+        color: '#428813',
+        colorDark: '#8CC63F',
+        category: 'Play & Hobbies',
+        meta: 'Hiking & trails',
+    },
+    {
         label: 'PlayStation',
         href: 'https://profile.playstation.com/masterteo1205',
         icon: '/icons/playstation.svg',
