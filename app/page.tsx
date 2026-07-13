@@ -4,7 +4,7 @@ import Image from 'next/image'
 
 export default function Home() {
     return (
-        <main className="mx-auto max-w-2xl px-5 py-3 sm:px-6 sm:py-10 lg:max-w-3xl lg:py-12">
+        <main className="mx-auto max-w-2xl px-5 py-8 sm:px-6 sm:py-10 lg:max-w-3xl lg:py-12">
             <header className="flex flex-row items-center gap-4 sm:gap-5">
                 <span className="avatar-ring shrink-0">
                     <Image
@@ -28,9 +28,22 @@ export default function Home() {
                 </div>
             </header>
 
-            <section className="mt-4 sm:mt-7">
+            <section className="mt-6 sm:mt-7">
                 <Links />
             </section>
+
+            <p className="mt-4 text-[13px] leading-snug text-slate-500 dark:text-slate-400 sm:mt-6 sm:text-sm">
+                I&apos;m building{' '}
+                <a
+                    href="https://sir-teo.github.io/FinOS-AgentLab"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 transition hover:decoration-slate-500 dark:text-slate-200 dark:decoration-slate-600 dark:hover:decoration-slate-400"
+                >
+                    FinOS AgentLab
+                </a>{' '}
+                — if you&apos;re interested, join the waitlist!
+            </p>
         </main>
     )
 }

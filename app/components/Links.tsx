@@ -43,7 +43,7 @@ export default function Links() {
     }
     return (
         <>
-            <div className="space-y-3 sm:space-y-6">
+            <div className="space-y-5 sm:space-y-6">
                 {/* Chips grouped into a few categories; within each, ordered by rainbow hue. */}
                 {categories.map(category => {
                     const items = links.filter(
@@ -52,7 +52,7 @@ export default function Links() {
                     if (items.length === 0) return null
                     return (
                         <section key={category} aria-label={category}>
-                            <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 sm:mb-2">
+                            <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
                                 {category}
                             </h2>
                             <ul className="flex flex-wrap gap-2">
@@ -66,7 +66,7 @@ export default function Links() {
                     )
                 })}
                 {/* Assistant launchers — Ask AI links to the full chat page; Terminal opens an in-page panel. */}
-                <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-2 dark:border-slate-800 sm:pt-4">
+                <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
                     <AskAIChip />
                     <TerminalChip ref={termChipRef} active={termOpen} onClick={() => setTermOpen(o => !o)} />
                 </div>
