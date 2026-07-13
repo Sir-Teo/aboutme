@@ -65,41 +65,13 @@ export default function Links() {
                         </section>
                     )
                 })}
-                {/* Assistant launchers — Ask AI links to the full chat page; Terminal opens an in-page panel. */}
+                {/* Terminal launcher — opens an in-page panel. */}
                 <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
-                    <AskAIChip />
                     <TerminalChip ref={termChipRef} active={termOpen} onClick={() => setTermOpen(o => !o)} />
                 </div>
             </div>
             <Terminal open={termOpen} onClose={closeTerm} />
         </>
-    )
-}
-
-// Links to the standalone /chat page rather than opening an in-page panel.
-function AskAIChip() {
-    return (
-        <a
-            href="/chat"
-            aria-label="Open Ask AI chat"
-            title="Ask an on-device AI about Teo"
-            className="group inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] text-slate-700 ring-1 ring-slate-200 transition active:scale-[0.97] hover:ring-slate-300 motion-safe:hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:ring-slate-600 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-950 sm:gap-2 sm:text-sm"
-        >
-            <svg
-                viewBox="0 0 24 24"
-                aria-hidden
-                className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            >
-                <path d="M12 3a4 4 0 0 1 4 4 4 4 0 0 1 0 8 4 4 0 0 1-8 0 4 4 0 0 1 0-8 4 4 0 0 1 4-4Z" />
-                <path d="M12 7v.01M9 11h6" />
-            </svg>
-            <span>Ask AI</span>
-        </a>
     )
 }
 
