@@ -166,6 +166,74 @@ html {
     color: var(--c-text);
 }
 
+/* ── Theme-toggle eclipse easter egg ─────────────────────────────────────────
+   Rapid toggling triggers ~2.6s of "totality": a page-dimming overlay, a moon
+   disc sliding across the sun icon, and a corona ring at mid-pass. Everything
+   removes itself; no theme state involved. */
+.eclipse-overlay {
+    pointer-events: none;
+    background:
+        radial-gradient(circle at calc(100% - 2.1rem) 2.1rem, rgba(129, 140, 248, 0.3) 0, transparent 14rem),
+        radial-gradient(circle at 50% 40%, #1e1b4b 0%, #0b0a1f 100%);
+    opacity: 0;
+    animation: eclipse-dim 2.6s ease-in-out forwards;
+}
+
+.eclipse-moon {
+    animation: eclipse-pass 2.6s ease-in-out forwards;
+}
+
+.eclipse-corona {
+    opacity: 0;
+    animation: eclipse-corona 2.6s ease-in-out forwards;
+}
+
+@keyframes eclipse-dim {
+    0% {
+        opacity: 0;
+    }
+    40%,
+    60% {
+        opacity: 0.92;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes eclipse-pass {
+    from {
+        transform: translateX(-16px);
+    }
+    to {
+        transform: translateX(16px);
+    }
+}
+
+@keyframes eclipse-corona {
+    0%,
+    30%,
+    70%,
+    100% {
+        opacity: 0;
+    }
+    45%,
+    55% {
+        opacity: 1;
+    }
+}
+
+/* JS already skips the egg under reduced motion; this is belt and suspenders. */
+@media (prefers-reduced-motion: reduce) {
+    .eclipse-overlay {
+        display: none;
+    }
+    .eclipse-moon,
+    .eclipse-corona {
+        animation: none;
+    }
+}
+
 /* Brand-colored link icons (CSS mask filled with each link's --ic color).
    In dark mode, near-black brand colors fall back to a lighter --icd. */
 .link-icon {
