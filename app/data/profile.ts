@@ -26,9 +26,9 @@ export const profile = {
     name: 'Teo Zeng',
     tagline:
         'I am Teo Zeng. I like traveling, running, any sports with an emphasis on basketball, researching, and playing video games.',
-    avatar: '/user/bearded-collie.jpg',
-    // CC BY 2.0 attribution for the avatar photo (shown on hover).
-    avatarCredit: 'Bearded Collie — photo by John Haslam (CC BY 2.0)',
+    avatar: '/user/shifu.webp',
+    // Attribution for the avatar image (shown on hover).
+    avatarCredit: 'Master Shifu — Kung Fu Panda © DreamWorks Animation',
 }
 
 export const links: LinkItem[] = [
