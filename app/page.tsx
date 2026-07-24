@@ -35,7 +35,7 @@ export default function Home() {
             <p className="mt-4 text-[13px] leading-snug text-slate-500 dark:text-slate-400 sm:mt-6 sm:text-sm">
                 I&apos;m building{' '}
                 <a
-                    href="https://sir-teo.github.io/FinOS-AgentLab"
+                    href="https://finos.teozeng.dev/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 transition hover:decoration-slate-500 dark:text-slate-200 dark:decoration-slate-600 dark:hover:decoration-slate-400"
