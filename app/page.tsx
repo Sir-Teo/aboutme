@@ -33,7 +33,7 @@ export default function Home() {
             </section>
 
             <p className="mt-4 text-[13px] leading-snug text-slate-500 dark:text-slate-400 sm:mt-6 sm:text-sm">
-                I&apos;m building{' '}
+                I built{' '}
                 <a
                     href="https://finos.teozeng.dev/"
                     target="_blank"
@@ -42,7 +42,20 @@ export default function Home() {
                 >
                     FinOS AgentLab
                 </a>{' '}
-                — if you&apos;re interested, join the waitlist!
+                — now retired, but the site is still up if you want a look.
+            </p>
+
+            <p className="mt-2 text-[13px] leading-snug text-slate-500 dark:text-slate-400 sm:mt-3 sm:text-sm">
+                These days I&apos;m building{' '}
+                <a
+                    href="https://coc.teozeng.dev/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 transition hover:decoration-slate-500 dark:text-slate-200 dark:decoration-slate-600 dark:hover:decoration-slate-400"
+                >
+                    a browser game
+                </a>
+                .
             </p>
         </main>
     )
