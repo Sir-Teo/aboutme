@@ -31,6 +31,13 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # Gate the deploy on the same checks that run locally: a lint error, a type
+      # error or a failing test should stop the release, not ship.
+      - run: npm run lint
+      - run: npm run check-types
+      - run: npm test
+
       - run: npm run build
 
       - name: Deploy to Firebase Hosting

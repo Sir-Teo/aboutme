@@ -1,10 +1,30 @@
-import { profile } from './data/profile'
+import { profile, links } from './data/profile'
 import Links from './components/Links'
 import Image from 'next/image'
+
+// schema.org Person, derived from the same link data the page renders, so the
+// structured description can never drift from what is on screen. Invisible to
+// readers; it is what lets search engines tie all these profiles to one person.
+function personJsonLd() {
+    const email = links.find(l => l.href?.startsWith('mailto:'))?.href?.slice('mailto:'.length)
+    return {
+        '@context': 'https://schema.org',
+        '@type': 'Person',
+        name: profile.name,
+        url: profile.url,
+        image: `${profile.url}${profile.avatar}`,
+        description: profile.description,
+        jobTitle: profile.jobTitle,
+        homeLocation: { '@type': 'Place', name: profile.location },
+        ...(email ? { email } : {}),
+        sameAs: links.filter(l => l.href?.startsWith('http')).map(l => l.href),
+    }
+}
 
 export default function Home() {
     return (
         <main className="mx-auto max-w-2xl px-5 py-8 sm:px-6 sm:py-10 lg:max-w-3xl lg:py-12">
+            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd()) }} />
             <header className="flex flex-row items-center gap-4 sm:gap-5">
                 <span className="avatar-ring shrink-0">
                     <Image

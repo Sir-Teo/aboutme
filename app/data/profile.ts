@@ -24,6 +24,13 @@ export type LinkItem = {
 
 export const profile = {
     name: 'Teo Zeng',
+    // Canonical origin, used for the canonical link, Open Graph URLs and the sitemap.
+    url: 'https://teozeng.dev',
+    // Third-person summary for search results and link previews. The first-person
+    // `tagline` below is what the page itself renders.
+    description: 'Teo Zeng — data scientist and machine-learning researcher in New York.',
+    jobTitle: 'Data Scientist',
+    location: 'New York',
     tagline:
         'I am Teo Zeng. I like traveling, running, any sports with an emphasis on basketball, researching, and playing video games.',
     avatar: '/user/shifu.webp',

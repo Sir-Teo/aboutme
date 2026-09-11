@@ -1,10 +1,35 @@
 import './globals.css'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import ThemeToggle from './components/ThemeToggle'
+import { profile } from './data/profile'
 
 export const metadata: Metadata = {
-    title: 'Teo Zeng',
-    description: 'Teo Zeng — data scientist and machine-learning researcher in New York.',
+    metadataBase: new URL(profile.url),
+    title: profile.name,
+    description: profile.description,
+    alternates: { canonical: '/' },
+    // The card shown when the site is pasted into Slack, iMessage, LinkedIn, X...
+    // The image itself comes from app/opengraph-image.tsx by file convention.
+    openGraph: {
+        type: 'profile',
+        url: profile.url,
+        siteName: profile.name,
+        title: profile.name,
+        description: profile.description,
+    },
+    twitter: {
+        card: 'summary_large_image',
+        title: profile.name,
+        description: profile.description,
+    },
+}
+
+// Matches the body background in each theme so mobile browser chrome blends in.
+export const viewport: Viewport = {
+    themeColor: [
+        { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+        { media: '(prefers-color-scheme: dark)', color: '#020617' },
+    ],
 }
 
 // Applies the saved (or system) theme before first paint to avoid a flash.

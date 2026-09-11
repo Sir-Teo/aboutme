@@ -10,9 +10,15 @@ import {
     type RefCallback,
     type RefObject,
 } from 'react'
+import dynamic from 'next/dynamic'
 import QRCodePopover from './QRCodePopover'
-import Terminal from './Terminal'
 import { categories, links, type LinkItem } from '../data/profile'
+
+// The terminal is roughly two thirds of this page's client code and hardly anyone
+// opens it. Split it into its own chunk and pull that chunk in once the page has
+// gone idle (or right away if someone clicks first), so it stays off the initial
+// load without changing how the panel itself behaves.
+const Terminal = dynamic(() => import('./Terminal'), { ssr: false })
 
 // Keyboard focus ring shared by every chip so tab-navigation is clearly visible
 // without affecting the resting (mouse) look.
@@ -35,7 +41,19 @@ function useCanHover() {
 
 export default function Links() {
     const [termOpen, setTermOpen] = useState(false)
+    const [termLoaded, setTermLoaded] = useState(false)
     const termChipRef = useRef<HTMLButtonElement>(null)
+
+    // Warm the terminal chunk during idle time so the first open is instant.
+    useEffect(() => {
+        if (typeof window.requestIdleCallback !== 'function') {
+            const id = window.setTimeout(() => setTermLoaded(true), 1500)
+            return () => window.clearTimeout(id)
+        }
+        const id = window.requestIdleCallback(() => setTermLoaded(true), { timeout: 3000 })
+        return () => window.cancelIdleCallback(id)
+    }, [])
+
     // Return focus to the launcher when the panel closes (keyboard accessibility).
     const closeTerm = () => {
         setTermOpen(false)
@@ -67,10 +85,17 @@ export default function Links() {
                 })}
                 {/* Terminal launcher — opens an in-page panel. */}
                 <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
-                    <TerminalChip ref={termChipRef} active={termOpen} onClick={() => setTermOpen(o => !o)} />
+                    <TerminalChip
+                        ref={termChipRef}
+                        active={termOpen}
+                        onClick={() => {
+                            setTermLoaded(true) // in case the click beats the idle warm-up
+                            setTermOpen(o => !o)
+                        }}
+                    />
                 </div>
             </div>
-            <Terminal open={termOpen} onClose={closeTerm} />
+            {termLoaded && <Terminal open={termOpen} onClose={closeTerm} />}
         </>
     )
 }
@@ -151,19 +176,19 @@ type TooltipPosition = {
 }
 
 // Hover/focus card that reveals a handle and any public stats (XP, streak, rating...).
-// On touch (`interactive`) it becomes tappable and shows a Visit action.
+// The card is reachable: the pointer can travel from the chip onto it without
+// dismissing it, and clicking it does exactly what clicking the chip does, so no
+// extra affordance is needed.
 function StatCard({
     link,
     triggerRef,
     id,
-    interactive = false,
-    actionHref,
+    onActivate,
 }: {
     link: LinkItem
     triggerRef: RefObject<HTMLElement | null>
     id: string
-    interactive?: boolean
-    actionHref?: string
+    onActivate?: () => void
 }) {
     const cardRef = useRef<HTMLDivElement>(null)
     const [position, setPosition] = useState<TooltipPosition | null>(null)
@@ -177,15 +202,16 @@ function StatCard({
             const triggerRect = trigger.getBoundingClientRect()
             const cardRect = card.getBoundingClientRect()
             const margin = 12
-            const gap = 8
             const availableWidth = Math.max(0, window.innerWidth - margin * 2)
             const cardWidth = Math.min(cardRect.width || 240, availableWidth)
+            // Includes the `py-2` stand-off, so the visible surface still sits 8px
+            // clear of the chip while the box itself touches it.
             const cardHeight = cardRect.height || 120
-            const preferredTop = triggerRect.top - cardHeight - gap
+            const preferredTop = triggerRect.top - cardHeight
             const opensAbove = preferredTop >= margin
             const top = opensAbove
                 ? preferredTop
-                : Math.min(triggerRect.bottom + gap, window.innerHeight - cardHeight - margin)
+                : Math.min(triggerRect.bottom, window.innerHeight - cardHeight - margin)
             const centeredLeft = triggerRect.left + triggerRect.width / 2 - cardWidth / 2
             const left = Math.min(Math.max(centeredLeft, margin), window.innerWidth - cardWidth - margin)
 
@@ -215,11 +241,25 @@ function StatCard({
                 maxWidth: 'min(16rem, calc(100vw - 1.5rem))',
                 visibility: position ? 'visible' : 'hidden',
             }}
-            className={`fixed z-50 transition duration-150 ease-out ${interactive ? '' : 'pointer-events-none'} ${
+            // py-2 keeps the visible surface clear of the chip while leaving the box
+            // flush against it, so crossing the gap never counts as leaving.
+            className={`fixed z-50 py-2 transition duration-150 ease-out ${
                 position ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'
             }`}
         >
-            <div className="w-max min-w-40 rounded-lg bg-white/95 p-3 text-left shadow-lg ring-1 ring-slate-200 backdrop-blur dark:bg-slate-800/95 dark:ring-slate-700">
+            <div
+                onClick={
+                    onActivate &&
+                    (() => {
+                        // Let people select a UID or handle without navigating away.
+                        if (window.getSelection()?.toString()) return
+                        onActivate()
+                    })
+                }
+                className={`w-max min-w-40 rounded-lg bg-white/95 p-3 text-left shadow-lg ring-1 ring-slate-200 backdrop-blur dark:bg-slate-800/95 dark:ring-slate-700 ${
+                    onActivate ? 'cursor-pointer' : ''
+                }`}
+            >
                 <div className="flex items-center gap-2">
                     <IconMask link={link} className="h-3.5 w-3.5" />
                     <span className="min-w-0 break-words text-sm font-medium text-slate-800 dark:text-slate-100">
@@ -227,13 +267,13 @@ function StatCard({
                     </span>
                 </div>
                 {link.meta && (
-                    <p className="mt-0.5 break-words text-xs text-slate-400 dark:text-slate-500">{link.meta}</p>
+                    <p className="mt-0.5 break-words text-xs text-slate-500 dark:text-slate-400">{link.meta}</p>
                 )}
                 {link.stats && link.stats.length > 0 && (
                     <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
                         {link.stats.map(stat => (
                             <div key={stat.label} className="flex min-w-0 flex-col">
-                                <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                                <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                     {stat.label}
                                 </dt>
                                 <dd className="break-words text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">
@@ -242,17 +282,6 @@ function StatCard({
                             </div>
                         ))}
                     </dl>
-                )}
-                {actionHref && (
-                    <a
-                        href={actionHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2.5 inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                    >
-                        Visit
-                        <span aria-hidden>↗</span>
-                    </a>
                 )}
             </div>
         </div>
@@ -275,22 +304,22 @@ function LinkChip({ link }: { link: LinkItem }) {
     const setTriggerRef: RefCallback<HTMLElement> = node => {
         triggerRef.current = node
     }
-    // Hover devices: pointer enter/leave drives the card. Touch devices: it is
-    // tap-to-open (handled in onClick below) and closed by an outside tap / Escape.
-    // Focus opens the card everywhere so keyboard users get it too.
+    // Focus opens the card everywhere so keyboard users get it too. Touch devices
+    // are tap-to-open (handled in onClick below), closed by an outside tap / Escape.
     const triggerCardProps = showCard
         ? {
               'aria-describedby': cardOpen ? statCardId : undefined,
               onFocus: () => setCardOpen(true),
-              ...(canHover
-                  ? {
-                        onBlur: () => setCardOpen(false),
-                        onPointerEnter: () => setCardOpen(true),
-                        onPointerLeave: () => setCardOpen(false),
-                    }
-                  : {}),
+              ...(canHover ? { onBlur: () => setCardOpen(false) } : {}),
           }
         : {}
+    // Hover lives on the wrapper, not the chip: the card renders inside the wrapper,
+    // so pointerleave holds off while the pointer is on the card. Without that you
+    // could never reach the card to click it.
+    const wrapHoverProps =
+        showCard && canHover
+            ? { onPointerEnter: () => setCardOpen(true), onPointerLeave: () => setCardOpen(false) }
+            : {}
 
     useEffect(() => {
         return () => {
@@ -379,7 +408,7 @@ function LinkChip({ link }: { link: LinkItem }) {
                 ? { ...link, label: handle }
                 : link
         return (
-            <div ref={wrapRef} className="relative inline-block">
+            <div ref={wrapRef} className="relative inline-block" {...wrapHoverProps}>
                 <button
                     ref={setTriggerRef}
                     type="button"
@@ -392,14 +421,14 @@ function LinkChip({ link }: { link: LinkItem }) {
                     <ChipInner link={visibleLink} />
                 </button>
                 {showCard && cardOpen && (
-                    <StatCard id={statCardId} triggerRef={triggerRef} link={link} interactive={!canHover} />
+                    <StatCard id={statCardId} triggerRef={triggerRef} link={link} onActivate={copy} />
                 )}
             </div>
         )
     }
 
     return (
-        <div ref={wrapRef} className="relative inline-block">
+        <div ref={wrapRef} className="relative inline-block" {...wrapHoverProps}>
             <a
                 ref={setTriggerRef}
                 href={link.href}
@@ -407,7 +436,7 @@ function LinkChip({ link }: { link: LinkItem }) {
                 rel="noopener noreferrer"
                 className={`inline-flex ${FOCUS_RING}`}
                 // On touch, the first tap reveals the stat card instead of navigating;
-                // a second tap (or the card's Visit action) then follows the link.
+                // a second tap — on the chip or the card — then follows the link.
                 onClick={event => {
                     if (!canHover && showCard && !cardOpen) {
                         event.preventDefault()
@@ -423,8 +452,7 @@ function LinkChip({ link }: { link: LinkItem }) {
                     id={statCardId}
                     triggerRef={triggerRef}
                     link={link}
-                    interactive={!canHover}
-                    actionHref={!canHover ? link.href : undefined}
+                    onActivate={() => window.open(link.href, '_blank', 'noopener,noreferrer')}
                 />
             )}
         </div>
