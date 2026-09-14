@@ -21,6 +21,21 @@ function personJsonLd() {
     }
 }
 
+// The underlined inline link used by the prose lines under the chips. No-wrap keeps a
+// two-word name like "Web Xiangqi" from splitting across lines on a phone.
+function TextLink({ href, children }: { href: string; children: React.ReactNode }) {
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="whitespace-nowrap font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 transition hover:decoration-slate-500 dark:text-slate-200 dark:decoration-slate-600 dark:hover:decoration-slate-400"
+        >
+            {children}
+        </a>
+    )
+}
+
 export default function Home() {
     return (
         <main className="mx-auto max-w-2xl px-5 py-8 sm:px-6 sm:py-10 lg:max-w-3xl lg:py-12">
@@ -53,29 +68,21 @@ export default function Home() {
             </section>
 
             <p className="mt-4 text-[13px] leading-snug text-slate-500 dark:text-slate-400 sm:mt-6 sm:text-sm">
-                I built{' '}
-                <a
-                    href="https://finos.teozeng.dev/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 transition hover:decoration-slate-500 dark:text-slate-200 dark:decoration-slate-600 dark:hover:decoration-slate-400"
-                >
-                    FinOS AgentLab
-                </a>{' '}
-                — now retired, but the site is still up if you want a look.
+                I built <TextLink href="https://finos.teozeng.dev/">FinOS AgentLab</TextLink> — now retired, but the
+                site is still up if you want a look.
             </p>
 
             <p className="mt-2 text-[13px] leading-snug text-slate-500 dark:text-slate-400 sm:mt-3 sm:text-sm">
-                These days I&apos;m building{' '}
-                <a
-                    href="https://coc.teozeng.dev/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 transition hover:decoration-slate-500 dark:text-slate-200 dark:decoration-slate-600 dark:hover:decoration-slate-400"
-                >
-                    a browser game
-                </a>
-                .
+                I also made board-game apps: <TextLink href="https://sir-teo.github.io/web-chess/">Web Chess</TextLink>,{' '}
+                <TextLink href="https://sir-teo.github.io/web-xiangqi/">Web Xiangqi</TextLink>, and{' '}
+                <TextLink href="https://sir-teo.github.io/web-katrain/">Web KaTrain</TextLink>.
+            </p>
+
+            <p className="mt-2 text-[13px] leading-snug text-slate-500 dark:text-slate-400 sm:mt-3 sm:text-sm">
+                These days I&apos;m building browser games:{' '}
+                <TextLink href="https://coc.teozeng.dev/">Crown &amp; Clan</TextLink>,{' '}
+                <TextLink href="https://sir-teo.github.io/web-lol/">Summoner&apos;s Rift</TextLink>, and{' '}
+                <TextLink href="https://sir-teo.github.io/web-gta/">San Andreas</TextLink>. Hope you enjoy&nbsp;them!
             </p>
         </main>
     )
